@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Сёма Муха-Ха: Катушка</string>
+    <string name="title_activity_main">Сёма Муха-Ха: Катушка</string>
+    <string name="package_name">com.voltarz.semamuhaha</string>
+    <string name="custom_url_scheme">com.voltarz.semamuhaha</string>
+</resources>
