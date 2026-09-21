@@ -1,0 +1,57 @@
+name: Сборка iPhone IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+
+    steps:
+      - name: Скачать проект
+        uses: actions/checkout@v5
+
+      - name: Установить Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Установить зависимости
+        run: bun install --frozen-lockfile
+
+      - name: Добавить Capacitor iOS
+        run: bun add @capacitor/ios
+
+      - name: Собрать игру
+        run: bun run build
+
+      - name: Создать iOS-проект
+        run: |
+          if [ ! -d "ios" ]; then
+            bunx cap add ios
+          fi
+          bunx cap sync ios
+
+      - name: Собрать приложение без подписи
+        run: |
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Создать IPA
+        run: |
+          mkdir -p Payload
+          cp -R ios/App/build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r sema-muha-ha-katushka.ipa Payload
+
+      - name: Сохранить IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: sema-muha-ha-katushka-ipa
+          path: sema-muha-ha-katushka.ipa
+          if-no-files-found: error
