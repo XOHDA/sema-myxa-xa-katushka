@@ -1,0 +1,51 @@
+name: Сборка APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Скачать проект
+        uses: actions/checkout@v4
+
+      - name: Установить Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Установить зависимости
+        run: bun install --frozen-lockfile
+
+      - name: Собрать игру
+        run: bun run build
+
+      - name: Синхронизировать Android
+        run: bunx cap sync android
+
+      - name: Установить Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Настроить Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Установить Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Собрать APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Сохранить APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sema-muha-ha-katushka-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
