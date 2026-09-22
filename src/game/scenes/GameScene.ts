@@ -1342,6 +1342,13 @@ export class GameScene extends Phaser.Scene {
     } else {
       soundManager.updateMotorSpeed(0, false);
     }
+
+    // Dynamic EUC unicycle turbine sound: spools up in pitch when holding boost, smoothly winds down on release!
+    if (!this.isVictory && !this.isGameOver && !this.isCutout && this.isBoosting) {
+      soundManager.updateTurbine(true, this.boostHoldDuration, this.isSuperBoost);
+    } else {
+      soundManager.updateTurbine(false, 0, false);
+    }
   }
 
   private handlePlayerLand() {
@@ -1963,6 +1970,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.flash(220, 255, 45, 45);
 
     soundManager.playCutout();
+    soundManager.stopTurbine();
 
     if (reason === 'boost') {
       this.createFloatingText(this.player.x, this.player.y - 85, '💥 ПРОДАВ! БУСТ > 3 СЕК! 💥', '#ef4444');
@@ -2060,6 +2068,8 @@ export class GameScene extends Phaser.Scene {
     this.isVictory = false;
     this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
     this.isBoosting = false;
+    this.boostHoldDuration = 0;
+    soundManager.stopTurbine();
     if (this.poopProjectiles) {
       this.poopProjectiles.clear(true, true);
     }

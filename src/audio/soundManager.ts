@@ -16,6 +16,18 @@ class SoundManager {
   private motorGain: GainNode | null = null;
   private motorFilter: BiquadFilterNode | null = null;
 
+  // EUC Dynamic Turbine Engine Audio Nodes (Spool-up / Wind-down)
+  private turbineOsc1: OscillatorNode | null = null;
+  private turbineOsc2: OscillatorNode | null = null;
+  private turbineSubOsc: OscillatorNode | null = null;
+  private turbineNoiseSource: AudioBufferSourceNode | null = null;
+  private turbineNoiseFilter: BiquadFilterNode | null = null;
+  private turbineNoiseGain: GainNode | null = null;
+  private turbineGain: GainNode | null = null;
+  private turbineNoiseBuffer: AudioBuffer | null = null;
+  private isTurbineRunning: boolean = false;
+  private turbineStopTimeout: ReturnType<typeof setTimeout> | null = null;
+
   // Music playback: Real Audio Element + Procedural Fallback
   private bgAudio: HTMLAudioElement | null = null;
   private customAudioUrl: string | null = null;
@@ -150,8 +162,11 @@ class SoundManager {
       }
     }
 
-    if (!this.settings.sound && this.motorGain) {
-      this.motorGain.gain.setValueAtTime(0, this.ctx ? this.ctx.currentTime : 0);
+    if (!this.settings.sound) {
+      if (this.motorGain) {
+        this.motorGain.gain.setValueAtTime(0, this.ctx ? this.ctx.currentTime : 0);
+      }
+      this.stopTurbine();
     }
   }
 
@@ -262,6 +277,287 @@ class SoundManager {
       }
       this.motorGain = null;
     }
+    this.stopTurbine();
+  }
+
+  // --- EUC TURBINE ENGINE AUDIO (Dynamic Spool-up & Wind-down) ---
+  private getTurbineNoiseBuffer(): AudioBuffer | null {
+    if (this.turbineNoiseBuffer) return this.turbineNoiseBuffer;
+    if (!this.ctx) return null;
+    try {
+      const sampleRate = this.ctx.sampleRate;
+      const buffer = this.ctx.createBuffer(1, sampleRate * 2, sampleRate);
+      const data = buffer.getChannelData(0);
+      let lastOut = 0.0;
+      for (let i = 0; i < sampleRate * 2; i++) {
+        // Pink-filtered noise for authentic aerodynamic air intake rush
+        const white = Math.random() * 2 - 1;
+        lastOut = (lastOut + 0.02 * white) / 1.02;
+        data[i] = lastOut * 3.5 + white * 0.15;
+      }
+      this.turbineNoiseBuffer = buffer;
+      return buffer;
+    } catch {
+      return null;
+    }
+  }
+
+  private startTurbineNodes(isSuper: boolean) {
+    if (!this.ctx || !this.settings.sound) return;
+    if (this.isTurbineRunning && this.turbineGain) {
+      if (this.turbineStopTimeout) {
+        clearTimeout(this.turbineStopTimeout);
+        this.turbineStopTimeout = null;
+      }
+      return;
+    }
+
+    try {
+      const t = this.ctx.currentTime;
+
+      // Master turbine output gain
+      this.turbineGain = this.ctx.createGain();
+      this.turbineGain.gain.setValueAtTime(0.0001, t);
+      // Immediate clean ramp up on boost engagement
+      const targetGain = Math.max(0.0001, 0.28 * this.settings.volume);
+      this.turbineGain.gain.exponentialRampToValueAtTime(targetGain, t + 0.08);
+      this.turbineGain.connect(this.ctx.destination);
+
+      // 1. Primary high-RPM turbine whistle (pure sine with stator resonance)
+      this.turbineOsc1 = this.ctx.createOscillator();
+      this.turbineOsc1.type = 'sine';
+      this.turbineOsc1.frequency.setValueAtTime(isSuper ? 460 : 380, t);
+
+      const osc1Gain = this.ctx.createGain();
+      osc1Gain.gain.setValueAtTime(0.55, t);
+      this.turbineOsc1.connect(osc1Gain);
+      osc1Gain.connect(this.turbineGain);
+      this.turbineOsc1.start(t);
+
+      // 2. Harmonic overtone (triangle wave for electric blade shimmer)
+      this.turbineOsc2 = this.ctx.createOscillator();
+      this.turbineOsc2.type = 'triangle';
+      this.turbineOsc2.frequency.setValueAtTime((isSuper ? 460 : 380) * 1.5, t);
+
+      const osc2Gain = this.ctx.createGain();
+      osc2Gain.gain.setValueAtTime(0.24, t);
+      this.turbineOsc2.connect(osc2Gain);
+      osc2Gain.connect(this.turbineGain);
+      this.turbineOsc2.start(t);
+
+      // 3. Sub-harmonic stator core rumble (low-frequency electric torque)
+      this.turbineSubOsc = this.ctx.createOscillator();
+      this.turbineSubOsc.type = 'sawtooth';
+      this.turbineSubOsc.frequency.setValueAtTime(isSuper ? 130 : 95, t);
+
+      const subFilter = this.ctx.createBiquadFilter();
+      subFilter.type = 'lowpass';
+      subFilter.frequency.setValueAtTime(450, t);
+
+      const subGain = this.ctx.createGain();
+      subGain.gain.setValueAtTime(0.2, t);
+      this.turbineSubOsc.connect(subFilter);
+      subFilter.connect(subGain);
+      subGain.connect(this.turbineGain);
+      this.turbineSubOsc.start(t);
+
+      // 4. Aerodynamic air rush noise buffer
+      const noiseBuffer = this.getTurbineNoiseBuffer();
+      if (noiseBuffer) {
+        this.turbineNoiseSource = this.ctx.createBufferSource();
+        this.turbineNoiseSource.buffer = noiseBuffer;
+        this.turbineNoiseSource.loop = true;
+
+        this.turbineNoiseFilter = this.ctx.createBiquadFilter();
+        this.turbineNoiseFilter.type = 'bandpass';
+        this.turbineNoiseFilter.frequency.setValueAtTime(isSuper ? 1100 : 800, t);
+        this.turbineNoiseFilter.Q.setValueAtTime(3.2, t);
+
+        this.turbineNoiseGain = this.ctx.createGain();
+        this.turbineNoiseGain.gain.setValueAtTime(0.28, t);
+
+        this.turbineNoiseSource.connect(this.turbineNoiseFilter);
+        this.turbineNoiseFilter.connect(this.turbineNoiseGain);
+        this.turbineNoiseGain.connect(this.turbineGain);
+        this.turbineNoiseSource.start(t);
+      }
+
+      this.isTurbineRunning = true;
+    } catch (e) {
+      console.warn('Turbine sound error', e);
+    }
+  }
+
+  /**
+   * Continuous dynamic turbine audio update called in the game loop.
+   * Spools up in pitch when holding boost, winds down and fades out upon release!
+   */
+  public updateTurbine(isBoosting: boolean, holdDuration: number, isSuper: boolean) {
+    if (!this.ctx) return;
+
+    if (!isBoosting || !this.settings.sound) {
+      if (this.isTurbineRunning && this.turbineGain) {
+        this.windDownTurbine();
+      }
+      return;
+    }
+
+    this.init();
+    if (!this.ctx) return;
+
+    // Start nodes if not running
+    if (!this.isTurbineRunning) {
+      this.startTurbineNodes(isSuper);
+    } else if (this.turbineStopTimeout) {
+      // If player re-engaged boost while winding down, immediately catch & cancel stop
+      clearTimeout(this.turbineStopTimeout);
+      this.turbineStopTimeout = null;
+      if (this.turbineGain) {
+        const t = this.ctx.currentTime;
+        const targetGain = Math.max(0.0001, 0.28 * this.settings.volume);
+        this.turbineGain.gain.cancelScheduledValues(t);
+        this.turbineGain.gain.setTargetAtTime(targetGain, t, 0.05);
+      }
+    }
+
+    if (!this.turbineGain || !this.turbineOsc1) return;
+
+    const t = this.ctx.currentTime;
+
+    // Dynamic pitch spool-up calculation based on continuous hold duration (0s to 3.0s limit):
+    const normalizedHold = Math.min(1.0, holdDuration / 2.6);
+    // Smooth responsive spool-up curve: fast initial spool rising to high screaming pitch
+    const spoolCurve = 1 - Math.pow(1 - normalizedHold, 1.8);
+
+    const baseWhine = isSuper ? 460 : 380;
+    const maxWhine = isSuper ? 2380 : 1850;
+    const currentWhineFreq = baseWhine + (maxWhine - baseWhine) * spoolCurve;
+
+    // Air rush filter frequency sweeps from 800 Hz up to 4200 Hz
+    const filterFreq = (isSuper ? 1100 : 800) + 3200 * spoolCurve;
+
+    // Sub stator torque frequency climbs from 95 Hz to 310 Hz
+    const subFreq = (isSuper ? 130 : 95) + 210 * spoolCurve;
+
+    // Turbine volume intensifies smoothly with hold duration
+    const targetVol = (0.26 + 0.12 * spoolCurve) * this.settings.volume;
+
+    // Apply smooth target transitions (0.05s time constant for glitch-free continuous audio)
+    this.turbineOsc1.frequency.setTargetAtTime(currentWhineFreq, t, 0.05);
+    if (this.turbineOsc2) {
+      this.turbineOsc2.frequency.setTargetAtTime(currentWhineFreq * 1.5, t, 0.05);
+    }
+    if (this.turbineSubOsc) {
+      this.turbineSubOsc.frequency.setTargetAtTime(subFreq, t, 0.05);
+    }
+    if (this.turbineNoiseFilter) {
+      this.turbineNoiseFilter.frequency.setTargetAtTime(filterFreq, t, 0.07);
+    }
+    if (this.turbineGain) {
+      this.turbineGain.gain.setTargetAtTime(targetVol, t, 0.05);
+    }
+  }
+
+  /**
+   * Smoothly winds down turbine pitch and fades volume to zero when boost button is released.
+   */
+  public windDownTurbine() {
+    if (!this.ctx || !this.isTurbineRunning || !this.turbineGain) return;
+    if (this.turbineStopTimeout) return; // already winding down
+
+    const t = this.ctx.currentTime;
+    const fadeDuration = 0.55; // 550ms smooth wind-down & decay
+
+    try {
+      // 1. Spool-down pitch drop (turbine decelerates)
+      if (this.turbineOsc1) {
+        this.turbineOsc1.frequency.setTargetAtTime(220, t, 0.16);
+      }
+      if (this.turbineOsc2) {
+        this.turbineOsc2.frequency.setTargetAtTime(330, t, 0.16);
+      }
+      if (this.turbineSubOsc) {
+        this.turbineSubOsc.frequency.setTargetAtTime(65, t, 0.16);
+      }
+      if (this.turbineNoiseFilter) {
+        this.turbineNoiseFilter.frequency.setTargetAtTime(500, t, 0.18);
+      }
+
+      // 2. Smooth volume fade to zero
+      this.turbineGain.gain.cancelScheduledValues(t);
+      this.turbineGain.gain.setValueAtTime(this.turbineGain.gain.value, t);
+      this.turbineGain.gain.exponentialRampToValueAtTime(0.0001, t + fadeDuration);
+
+      // Clean up oscillator nodes after audio has faded completely
+      this.turbineStopTimeout = setTimeout(() => {
+        this.cleanupTurbineNodes();
+      }, fadeDuration * 1000 + 50);
+    } catch {
+      this.cleanupTurbineNodes();
+    }
+  }
+
+  /**
+   * Immediately stops and cuts turbine audio (for crashes, game over, victory, checkpoint).
+   */
+  public stopTurbine() {
+    if (this.turbineStopTimeout) {
+      clearTimeout(this.turbineStopTimeout);
+      this.turbineStopTimeout = null;
+    }
+    if (this.turbineGain && this.ctx) {
+      try {
+        const t = this.ctx.currentTime;
+        this.turbineGain.gain.cancelScheduledValues(t);
+        this.turbineGain.gain.setValueAtTime(0, t);
+      } catch {
+        // ignore
+      }
+    }
+    this.cleanupTurbineNodes();
+  }
+
+  private cleanupTurbineNodes() {
+    this.isTurbineRunning = false;
+    this.turbineStopTimeout = null;
+
+    try {
+      if (this.turbineOsc1) {
+        this.turbineOsc1.stop();
+        this.turbineOsc1.disconnect();
+      }
+      if (this.turbineOsc2) {
+        this.turbineOsc2.stop();
+        this.turbineOsc2.disconnect();
+      }
+      if (this.turbineSubOsc) {
+        this.turbineSubOsc.stop();
+        this.turbineSubOsc.disconnect();
+      }
+      if (this.turbineNoiseSource) {
+        this.turbineNoiseSource.stop();
+        this.turbineNoiseSource.disconnect();
+      }
+      if (this.turbineNoiseFilter) {
+        this.turbineNoiseFilter.disconnect();
+      }
+      if (this.turbineNoiseGain) {
+        this.turbineNoiseGain.disconnect();
+      }
+      if (this.turbineGain) {
+        this.turbineGain.disconnect();
+      }
+    } catch {
+      // ignore
+    }
+
+    this.turbineOsc1 = null;
+    this.turbineOsc2 = null;
+    this.turbineSubOsc = null;
+    this.turbineNoiseSource = null;
+    this.turbineNoiseFilter = null;
+    this.turbineNoiseGain = null;
+    this.turbineGain = null;
   }
 
   // --- SOUND EFFECTS ---
