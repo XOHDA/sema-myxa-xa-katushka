@@ -44,19 +44,21 @@ const INITIAL_STATS: PlayerStats = {
   trickPopup: null,
 };
 
+const INITIAL_INPUT_STATE: InputState = {
+  left: false,
+  right: false,
+  jump: false,
+  boost: false,
+  down: false,
+};
+
 export default function App() {
   // Game starts on Main Menu screen
   const [gameState, setGameState] = useState<GameState>('MENU');
   const [currentLevel, setCurrentLevel] = useState<LevelId>(1);
   const [gameRunId, setGameRunId] = useState(0);
   const [stats, setStats] = useState<PlayerStats>(INITIAL_STATS);
-  const [inputState, setInputState] = useState<InputState>({
-    left: false,
-    right: false,
-    jump: false,
-    boost: false,
-    down: false,
-  });
+  const [inputState, setInputState] = useState<InputState>(INITIAL_INPUT_STATE);
 
   // Modals
   const [isLevelSelectOpen, setIsLevelSelectOpen] = useState(false);
@@ -82,27 +84,31 @@ export default function App() {
 
   const handleGameOver = useCallback(() => {
     soundManager.stopMotor();
+    setInputState(INITIAL_INPUT_STATE);
     setGameState((prev) => (prev === 'VICTORY' ? prev : 'GAMEOVER'));
   }, []);
 
   const handleVictory = useCallback(() => {
     soundManager.stopMotor();
+    setInputState(INITIAL_INPUT_STATE);
     setGameState((prev) => (prev === 'GAMEOVER' ? prev : 'VICTORY'));
   }, []);
 
   useEffect(() => {
     if (gameState !== 'PLAYING') {
       soundManager.stopMotor();
+      setInputState(INITIAL_INPUT_STATE);
     }
   }, [gameState]);
 
   const handlePauseToggle = useCallback(() => {
+    setInputState(INITIAL_INPUT_STATE);
     setGameState((prev) => (prev === 'PLAYING' ? 'PAUSED' : prev === 'PAUSED' ? 'PLAYING' : prev));
   }, []);
 
   const handleRestart = () => {
     setStats(INITIAL_STATS);
-    setInputState({ left: false, right: false, jump: false, boost: false, down: false });
+    setInputState(INITIAL_INPUT_STATE);
     setGameRunId((prev) => prev + 1);
     setGameState('PLAYING');
   };
@@ -111,12 +117,14 @@ export default function App() {
     setCurrentLevel(levelId);
     setGameRunId((prev) => prev + 1);
     setStats(INITIAL_STATS);
+    setInputState(INITIAL_INPUT_STATE);
     setIsLevelSelectOpen(false);
     setGameState('PLAYING');
     soundManager.startMusic();
   };
 
   const handleNextLevel = () => {
+    setInputState(INITIAL_INPUT_STATE);
     if (currentLevel < 15) {
       const nextLvl = (currentLevel + 1) as LevelId;
       setTransitioningLevel(nextLvl);
@@ -136,6 +144,7 @@ export default function App() {
   };
 
   const handleRetryFromCheckpoint = () => {
+    setInputState(INITIAL_INPUT_STATE);
     setGameState('PLAYING');
     // Phaser scene respawns immediately at last checkpoint
     window.dispatchEvent(new CustomEvent('sema-respawn'));

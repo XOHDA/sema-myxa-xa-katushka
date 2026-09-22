@@ -57,6 +57,11 @@ export function generateGameTextures(scene: Phaser.Scene) {
   // 8. FINISH & VOLTARZ ARCH
   createVoltarzArchTexture(scene);
   createRampTexture(scene);
+
+  // 9. FLYING POOP DRONES & PROJECTILES
+  createFlyingDroneTexture(scene);
+  createPoopTexture(scene);
+  createPoopSplatTexture(scene);
 }
 
 function createSemaTexture(
@@ -1822,3 +1827,232 @@ function createVoltarzArchTexture(scene: Phaser.Scene) {
 
   scene.textures.addCanvas('arch_voltarz', canvas);
 }
+
+function createFlyingDroneTexture(scene: Phaser.Scene) {
+  const width = 84;
+  const height = 54;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // 1. Carbon fiber quadcopter arms
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  // Front-left to rear-right
+  ctx.moveTo(14, 20);
+  ctx.lineTo(70, 36);
+  // Rear-left to front-right
+  ctx.moveTo(14, 36);
+  ctx.lineTo(70, 20);
+  ctx.stroke();
+
+  // 2. Rotor motors & spinning blades (cyan translucent disc blur)
+  const rotorPositions = [
+    { x: 14, y: 18 },
+    { x: 70, y: 18 },
+    { x: 10, y: 36 },
+    { x: 74, y: 36 },
+  ];
+
+  rotorPositions.forEach((pos, idx) => {
+    // Spinning blade blur ellipse
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(pos.x, pos.y, 13, 4, idx % 2 === 0 ? 0.15 : -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // White spinning speed arc
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 1.2);
+    ctx.stroke();
+
+    // Motor Hub
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // 3. LED Beacons (Red on left, Green on right)
+  ctx.fillStyle = '#ef4444';
+  ctx.shadowColor = '#ef4444';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.arc(14, 22, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#22c55e';
+  ctx.shadowColor = '#22c55e';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.arc(70, 22, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // 4. Central Drone Body Pod (Dark sleek body with neon visor)
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.roundRect(26, 18, 32, 22, 9);
+  ctx.fill();
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+
+  // Shiny top canopy
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.ellipse(42, 24, 11, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 5. Mischievous Gnome Face / Evil funny visor on the drone
+  ctx.fillStyle = '#facc15';
+  // Left eye (angry/playful slant)
+  ctx.beginPath();
+  ctx.moveTo(33, 27);
+  ctx.lineTo(38, 29);
+  ctx.lineTo(34, 31);
+  ctx.closePath();
+  ctx.fill();
+
+  // Right eye
+  ctx.beginPath();
+  ctx.moveTo(51, 27);
+  ctx.lineTo(46, 29);
+  ctx.lineTo(50, 31);
+  ctx.closePath();
+  ctx.fill();
+
+  // Grinning smirk
+  ctx.strokeStyle = '#facc15';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(42, 31, 5, 0.2, Math.PI - 0.2);
+  ctx.stroke();
+
+  // 6. Mechanical Cargo Drop Hatch on the bottom
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(36, 40, 12, 6);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(38, 42, 8, 4);
+
+  // Ready indicator light (amber blinking dot)
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath();
+  ctx.arc(42, 44, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  scene.textures.addCanvas('drone_quadcopter', canvas);
+}
+
+function createPoopTexture(scene: Phaser.Scene) {
+  const size = 30;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const cx = 15;
+
+  // Bottom tier (wide rounded base)
+  ctx.fillStyle = '#78350f';
+  ctx.beginPath();
+  ctx.ellipse(cx, 22, 10, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Middle tier
+  ctx.fillStyle = '#92400e';
+  ctx.beginPath();
+  ctx.ellipse(cx, 16, 7.5, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Top swirl tier (curled peak)
+  ctx.fillStyle = '#b45309';
+  ctx.beginPath();
+  ctx.ellipse(cx, 11, 5, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pointy curly swirl tip
+  ctx.beginPath();
+  ctx.moveTo(cx, 8);
+  ctx.quadraticCurveTo(cx + 4, 4, cx + 2, 2.5);
+  ctx.quadraticCurveTo(cx - 1, 4, cx, 8);
+  ctx.fill();
+
+  // Specular glossy 3D highlights
+  ctx.fillStyle = 'rgba(254, 215, 170, 0.45)';
+  ctx.beginPath();
+  ctx.ellipse(cx - 4, 19.5, 3.5, 1.5, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.ellipse(cx - 3, 14.5, 2.5, 1.2, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Funny cartoon eyes (derpy/cheeky)
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx - 3, 16, 2, 0, Math.PI * 2);
+  ctx.arc(cx + 3, 16, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.arc(cx - 2.5, 16, 1, 0, Math.PI * 2);
+  ctx.arc(cx + 3.5, 16, 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  scene.textures.addCanvas('poop_projectile', canvas);
+}
+
+function createPoopSplatTexture(scene: Phaser.Scene) {
+  const width = 42;
+  const height = 20;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const cx = 21;
+  const cy = 10;
+
+  // Main splat blob
+  ctx.fillStyle = '#78350f';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 14, 6.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#92400e';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 1, 10, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Surrounding droplets
+  const droplets = [
+    { x: cx - 15, y: cy - 2, r: 2.2 },
+    { x: cx + 15, y: cy + 1, r: 2.5 },
+    { x: cx - 11, y: cy + 5, r: 1.8 },
+    { x: cx + 12, y: cy - 4, r: 2 },
+    { x: cx - 4, y: cy - 6, r: 1.5 },
+  ];
+
+  ctx.fillStyle = '#78350f';
+  droplets.forEach((d) => {
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  scene.textures.addCanvas('poop_splat', canvas);
+}
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { InputState } from '../types';
 import { ArrowLeft, ArrowRight, ArrowDown, Zap, ChevronUp } from 'lucide-react';
 import { RU } from '../localization/ru';
@@ -17,31 +17,79 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   boostHoldDuration = 0,
 }) => {
   const [activePointers, setActivePointers] = useState<Record<string, keyof InputState>>({});
+  const activePointersRef = useRef<Record<string, keyof InputState>>({});
+  const inputStateRef = useRef<InputState>(inputState);
 
-  const handlePointerDown = (key: keyof InputState, pointerId: number) => {
+  activePointersRef.current = activePointers;
+  inputStateRef.current = inputState;
+
+  // If parent resets all inputs (e.g., game over, checkpoint retry), wipe active pointers
+  useEffect(() => {
+    const isAnyActive = Object.values(inputState).some(Boolean);
+    if (!isAnyActive && Object.keys(activePointersRef.current).length > 0) {
+      setActivePointers({});
+    }
+  }, [inputState]);
+
+  // If controls become disabled, release all inputs and wipe active pointers
+  useEffect(() => {
+    if (disabled) {
+      setActivePointers({});
+      onInputChange({ left: false, right: false, jump: false, boost: false, down: false });
+    }
+  }, [disabled, onInputChange]);
+
+  // Clean up on component unmount
+  useEffect(() => {
+    return () => {
+      onInputChange({ left: false, right: false, jump: false, boost: false, down: false });
+    };
+  }, [onInputChange]);
+
+  const handlePointerDown = useCallback((key: keyof InputState, pointerId: number, target?: HTMLElement) => {
     if (disabled) return;
-    const nextPointers = { ...activePointers, [pointerId]: key };
+    try {
+      target?.setPointerCapture?.(pointerId);
+    } catch {
+      // Ignored if capture unsupported
+    }
+
+    const nextPointers = { ...activePointersRef.current, [pointerId]: key };
     setActivePointers(nextPointers);
 
-    const nextState: InputState = { ...inputState, [key]: true };
+    const nextState: InputState = { ...inputStateRef.current, [key]: true };
     onInputChange(nextState);
-  };
+  }, [disabled, onInputChange]);
 
-  const handlePointerUpOrCancel = (pointerId: number) => {
-    const key = activePointers[pointerId];
+  const handlePointerUpOrCancel = useCallback((pointerId: number) => {
+    const key = activePointersRef.current[pointerId];
     if (!key) return;
 
-    const nextPointers = { ...activePointers };
+    const nextPointers = { ...activePointersRef.current };
     delete nextPointers[pointerId];
     setActivePointers(nextPointers);
 
     // Check if any other pointer is still holding this key
     const stillPressed = Object.values(nextPointers).includes(key);
     if (!stillPressed) {
-      const nextState: InputState = { ...inputState, [key]: false };
+      const nextState: InputState = { ...inputStateRef.current, [key]: false };
       onInputChange(nextState);
     }
-  };
+  }, [onInputChange]);
+
+  // Global safety net for pointer releases anywhere on the window
+  useEffect(() => {
+    const handleGlobalRelease = (e: PointerEvent) => {
+      handlePointerUpOrCancel(e.pointerId);
+    };
+
+    window.addEventListener('pointerup', handleGlobalRelease);
+    window.addEventListener('pointercancel', handleGlobalRelease);
+    return () => {
+      window.removeEventListener('pointerup', handleGlobalRelease);
+      window.removeEventListener('pointercancel', handleGlobalRelease);
+    };
+  }, [handlePointerUpOrCancel]);
 
   return (
     <div
@@ -56,7 +104,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           aria-label={RU.leftButton}
           onPointerDown={(e) => {
             e.preventDefault();
-            handlePointerDown('left', e.pointerId);
+            handlePointerDown('left', e.pointerId, e.currentTarget);
           }}
           onPointerUp={(e) => handlePointerUpOrCancel(e.pointerId)}
           onPointerCancel={(e) => handlePointerUpOrCancel(e.pointerId)}
@@ -76,7 +124,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           aria-label={RU.rightButton}
           onPointerDown={(e) => {
             e.preventDefault();
-            handlePointerDown('right', e.pointerId);
+            handlePointerDown('right', e.pointerId, e.currentTarget);
           }}
           onPointerUp={(e) => handlePointerUpOrCancel(e.pointerId)}
           onPointerCancel={(e) => handlePointerUpOrCancel(e.pointerId)}
@@ -99,7 +147,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           aria-label={RU.boostButton}
           onPointerDown={(e) => {
             e.preventDefault();
-            handlePointerDown('boost', e.pointerId);
+            handlePointerDown('boost', e.pointerId, e.currentTarget);
           }}
           onPointerUp={(e) => handlePointerUpOrCancel(e.pointerId)}
           onPointerCancel={(e) => handlePointerUpOrCancel(e.pointerId)}
@@ -137,7 +185,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             aria-label={RU.jumpButton}
             onPointerDown={(e) => {
               e.preventDefault();
-              handlePointerDown('jump', e.pointerId);
+              handlePointerDown('jump', e.pointerId, e.currentTarget);
             }}
             onPointerUp={(e) => handlePointerUpOrCancel(e.pointerId)}
             onPointerCancel={(e) => handlePointerUpOrCancel(e.pointerId)}
@@ -159,7 +207,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             aria-label={RU.downButton}
             onPointerDown={(e) => {
               e.preventDefault();
-              handlePointerDown('down', e.pointerId);
+              handlePointerDown('down', e.pointerId, e.currentTarget);
             }}
             onPointerUp={(e) => handlePointerUpOrCancel(e.pointerId)}
             onPointerCancel={(e) => handlePointerUpOrCancel(e.pointerId)}

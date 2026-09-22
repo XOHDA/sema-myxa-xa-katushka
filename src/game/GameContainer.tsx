@@ -134,19 +134,34 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
 
     const handleSemaRespawn = () => {
+      const cleanInput: InputState = { left: false, right: false, jump: false, boost: false, down: false };
+      inputStateRef.current = cleanInput;
+      onInputChange(cleanInput);
       if (sceneRef.current) {
+        sceneRef.current.setInputState(cleanInput);
         sceneRef.current.respawnAtCheckpoint();
+      }
+    };
+
+    const handleWindowBlur = () => {
+      const cleanInput: InputState = { left: false, right: false, jump: false, boost: false, down: false };
+      inputStateRef.current = cleanInput;
+      onInputChange(cleanInput);
+      if (sceneRef.current) {
+        sceneRef.current.setInputState(cleanInput);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('sema-respawn', handleSemaRespawn);
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('sema-respawn', handleSemaRespawn);
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, [onInputChange, onPauseToggle]);
 

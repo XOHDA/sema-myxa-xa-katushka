@@ -996,6 +996,147 @@ class SoundManager {
     }
   }
 
+  // Smile Bonus sound: joyous melodic dual rising chime + playful sparkle
+  public playSmileBonus() {
+    this.vibrate([25, 30, 40]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc1.type = 'triangle';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, t); // C5
+      osc1.frequency.exponentialRampToValueAtTime(1046.5, t + 0.18); // C6
+      osc2.frequency.setValueAtTime(659.25, t); // E5
+      osc2.frequency.exponentialRampToValueAtTime(1318.51, t + 0.18); // E6
+
+      gain.gain.setValueAtTime(0.32 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc1.start(t);
+      osc2.start(t);
+      osc1.stop(t + 0.3);
+      osc2.stop(t + 0.3);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Funny gnome laugh from drone ("хи-хи-хи! хи-хи!")
+  public speakGnomeLaugh() {
+    this.vibrate([15, 20, 15, 20, 30]);
+
+    // 1. Synthesized cheeky high-pitched squeaky giggle pulses
+    if (this.settings.sound) {
+      this.init();
+      if (this.ctx) {
+        try {
+          const t = this.ctx.currentTime;
+          const giggles = [880, 1108, 987, 1318, 1174, 1567]; // Squeaky rapid arpeggiated laughter
+          giggles.forEach((freq, idx) => {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const start = t + idx * 0.065;
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, start);
+            osc.frequency.exponentialRampToValueAtTime(freq * 1.3, start + 0.05);
+
+            gain.gain.setValueAtTime(0.3 * this.settings.volume, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.06);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.065);
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 2. High-pitched squeaky funny cartoon gnome speech synthesis
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const laughs = [
+          'Хи-хи-хи! Попал, хи-хи!',
+          'Хи-хи-хи-хи! Лови какашку!',
+          'Хи-хи-хи! Прямо в Сёму, хи-хи!',
+          'Хи-хи-хи! Получи, хи-хи!',
+        ];
+        const chosen = laughs[Math.floor(Math.random() * laughs.length)];
+        const utter = new SpeechSynthesisUtterance(chosen);
+        utter.lang = 'ru-RU';
+        utter.pitch = 2.0; // High squeaky funny gnome voice!
+        utter.rate = 1.45; // Fast cheeky laughter speed
+        utter.volume = Math.min(1, this.settings.volume * 1.5);
+        window.speechSynthesis.speak(utter);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Wet cartoon poop drop sound
+  public playPoopDropSound() {
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, t);
+      osc.frequency.exponentialRampToValueAtTime(140, t + 0.12);
+      gain.gain.setValueAtTime(0.24 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Wet cartoon poop splat sound
+  public playPoopSplatSound() {
+    this.vibrate([40, 50]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(260, t);
+      osc.frequency.exponentialRampToValueAtTime(65, t + 0.18);
+      gain.gain.setValueAtTime(0.38 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.24);
+    } catch {
+      // ignore
+    }
+  }
+
   // Level Transition sound: ascending celebratory electronic chime chords
   public playLevelTransition() {
     this.vibrate([40, 50, 80]);

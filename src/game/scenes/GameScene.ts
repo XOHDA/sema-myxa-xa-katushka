@@ -88,6 +88,8 @@ export class GameScene extends Phaser.Scene {
   private puddles!: Phaser.Physics.Arcade.StaticGroup;
   private finishZone!: Phaser.GameObjects.Zone;
   private enemies!: Phaser.Physics.Arcade.Group;
+  private drones!: Phaser.Physics.Arcade.Group;
+  private poopProjectiles!: Phaser.Physics.Arcade.Group;
 
   // State
   private isCrouching = false;
@@ -119,6 +121,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   public setInputState(input: InputState) {
+    if (this.isGameOver || this.isVictory) {
+      this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
+      this.isBoosting = false;
+      return;
+    }
     this.inputState = { ...input };
   }
 
@@ -172,6 +179,8 @@ export class GameScene extends Phaser.Scene {
     this.obstacles = this.physics.add.staticGroup();
     this.puddles = this.physics.add.staticGroup();
     this.enemies = this.physics.add.group();
+    this.drones = this.physics.add.group();
+    this.poopProjectiles = this.physics.add.group();
 
     // 3. CREATE PLAYER SÉMA MUKHA-KHA FIRST (Must precede buildLevel and colliders)
     // Scaled to 0.72: compact, nimble, fits under all overhead bridges, signs, and arches!
@@ -255,6 +264,8 @@ export class GameScene extends Phaser.Scene {
     // Hazards & Obstacles
     this.physics.add.overlap(this.player, this.obstacles, this.handleHitObstacle, undefined, this);
     this.physics.add.overlap(this.player, this.enemies, this.handleHitObstacle, undefined, this);
+    this.physics.add.overlap(this.player, this.drones, this.handleHitDrone, undefined, this);
+    this.physics.add.overlap(this.player, this.poopProjectiles, this.handleHitPoop, undefined, this);
     this.physics.add.overlap(this.player, this.puddles, this.handlePuddleSlip, undefined, this);
     if (this.finishZone) {
       this.physics.add.overlap(this.player, this.finishZone, () => {
@@ -643,6 +654,29 @@ export class GameScene extends Phaser.Scene {
     let currentX = startX + 80;
     const stepScale = Math.max(0.48, 1.1 / density);
 
+    // 🌟 FLYING DRONES WITH POOP ATTACK 🌟
+    // Drones patrol overhead and drop poop when Sema rides beneath them
+    const droneCount = Phaser.Math.Between(1, 2);
+    for (let d = 0; d < droneCount; d++) {
+      const droneX = startX + 160 + d * Math.round((endX - startX - 260) / Math.max(1, droneCount)) + Phaser.Math.Between(-30, 30);
+      const droneY = groundY - Phaser.Math.Between(210, 260); // In the air overhead (Y ≈ 390 - 440)
+      const drone = this.drones.create(droneX, droneY, 'drone_quadcopter') as Phaser.Physics.Arcade.Sprite;
+      drone.setDepth(12);
+      if (drone.body) {
+        const db = drone.body as Phaser.Physics.Arcade.Body;
+        db.setAllowGravity(false);
+        db.setImmovable(true);
+        db.setSize(52, 28);
+        db.setOffset(16, 12);
+      }
+      drone.setVelocityX(Phaser.Math.RND.pick([-45, 45]));
+      drone.setData('startY', droneY);
+      drone.setData('minX', droneX - 85);
+      drone.setData('maxX', droneX + 85);
+      drone.setData('dropCooldown', Phaser.Math.Between(2200, 3600));
+      drone.setData('lastDrop', 0);
+    }
+
     // Probabilities evolve as level increases:
     const enemyThreshold = 1.0 - (0.12 + lvlProg * 0.22); // e.g. 0.88 down to 0.66
     const puddleThreshold = enemyThreshold - (0.14 + lvlProg * 0.08);
@@ -843,6 +877,80 @@ export class GameScene extends Phaser.Scene {
           const bubbleX = e.flipX ? e.x + 25 : e.x - 25;
           this.createSpeechBubble(bubbleX, e.y - 62, `«${RU.taxiShout}»`);
         }
+      }
+    });
+
+    // 3.1 DRONES & POOP DROP LOGIC
+    (this.drones.getChildren() as Phaser.Physics.Arcade.Sprite[]).forEach((drone) => {
+      if (!drone.active) return;
+      const startY = drone.getData('startY') || 390;
+      const minX = drone.getData('minX') || (drone.x - 70);
+      const maxX = drone.getData('maxX') || (drone.x + 70);
+      const dropCooldown = drone.getData('dropCooldown') || 2800;
+      const lastDrop = drone.getData('lastDrop') || 0;
+
+      // Hover bobbing with sine wave
+      drone.setY(startY + Math.sin(time / 260 + drone.x * 0.05) * 8);
+
+      // Patrol movement
+      if (drone.body) {
+        const db = drone.body as Phaser.Physics.Arcade.Body;
+        db.setVelocityY(0);
+        db.setAllowGravity(false);
+        if (drone.x <= minX) {
+          drone.setVelocityX(Math.abs(drone.body.velocity.x || 45));
+          drone.setFlipX(true);
+        } else if (drone.x >= maxX) {
+          drone.setVelocityX(-Math.abs(drone.body.velocity.x || 45));
+          drone.setFlipX(false);
+        }
+      }
+
+      // Check if player is beneath or approaching the drone
+      const dxToPlayer = this.player.x - drone.x;
+      const inDropZone = dxToPlayer >= -160 && dxToPlayer <= 50;
+      const playerBeneath = this.player.y > drone.y + 40;
+
+      if (inDropZone && playerBeneath && (time - lastDrop) > dropCooldown && !this.isGameOver && !this.isVictory) {
+        drone.setData('lastDrop', time);
+        // Drone drops poop projectile!
+        const poop = this.poopProjectiles.create(drone.x, drone.y + 20, 'poop_projectile') as Phaser.Physics.Arcade.Sprite;
+        poop.setDepth(11);
+        if (poop.body) {
+          const pb = poop.body as Phaser.Physics.Arcade.Body;
+          pb.setAllowGravity(true);
+          pb.setGravityY(750);
+          pb.setVelocityX(drone.body ? drone.body.velocity.x * 0.35 : 0);
+          pb.setVelocityY(80);
+          pb.setSize(18, 18);
+          pb.setOffset(6, 6);
+        }
+        poop.setData('sourceDrone', drone);
+
+        // Sound & speech bubble
+        soundManager.playPoopDropSound();
+        this.createSpeechBubble(drone.x, drone.y - 48, `«${RU.droneGnomeDrop || 'ХИ-ХИ! СМОТРИ НАВЕРХ!'}»`);
+
+        // Visual squash & stretch drop tween
+        this.tweens.add({
+          targets: drone,
+          scaleY: 0.8,
+          scaleX: 1.2,
+          yoyo: true,
+          duration: 120,
+        });
+      }
+    });
+
+    // Check poop falling and ground splat
+    (this.poopProjectiles.getChildren() as Phaser.Physics.Arcade.Sprite[]).forEach((poop) => {
+      if (!poop.active) return;
+      poop.rotation += 0.08;
+      // When poop hits ground level
+      if (poop.y >= 578) {
+        this.createPoopSplat(poop.x, 578);
+        soundManager.playPoopSplatSound();
+        poop.destroy();
       }
     });
 
@@ -1389,6 +1497,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleHitObstacle(playerObj: any, obstacleObj: any) {
     if (this.isInvulnerable || this.isGameOver || this.isVictory) return;
+    if (!obstacleObj || obstacleObj.active === false) return;
 
     const p = this.player;
     const pBody = p.body as Phaser.Physics.Arcade.Body;
@@ -1397,15 +1506,7 @@ export class GameScene extends Phaser.Scene {
     const obsY = obs.y;
     const texKey = obs.texture?.key || '';
 
-    // Obstacle collision: deals real damage!
-    this.shields--;
-    soundManager.playHit();
-    this.cameras.main.shake(200, 0.018);
-
-    // Speed loss and knockback from hitting a solid object
-    pBody.setVelocityX(pBody.velocity.x * 0.35);
-
-    // Obstacle shatter / crash effect on impact
+    // Calculate shard colors for obstacle shatter
     let shardColors = [0xfacc15, 0x1e293b, 0xffffff, 0xf97316];
     if (texKey.includes('bench')) {
       shardColors = [0x8b5a2b, 0xa0522d, 0x5c4033, 0x334155, 0xd2b48c];
@@ -1427,6 +1528,103 @@ export class GameScene extends Phaser.Scene {
       shardColors = [0x94a3b8, 0x64748b, 0xf97316, 0xffffff];
     } else if (texKey.includes('taxi')) {
       shardColors = [0xfacc15, 0xeab308, 0x0f172a, 0xf97316, 0xffffff, 0x38bdf8];
+    }
+
+    // Check if player is smashing the obstacle from above (прыжок/падение сверху)
+    const obsBody = (obstacleObj as any).body as Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | undefined;
+    const obsTop = obsBody ? obsBody.top : (obsY - 24);
+    const pBottom = pBody.bottom;
+    const isInAir = this.isAirborne || !pBody.blocked.down || pBody.velocity.y !== 0;
+    const isDescendingOrApex = pBody.velocity.y >= -40;
+    const isAboveObstacle = pBottom <= obsTop + 34 || p.y < obsY - 20;
+
+    const isStompFromAbove = isInAir && isDescendingOrApex && isAboveObstacle;
+
+    if (isStompFromAbove) {
+      // 🌟 РАЗБИВАНИЕ СВЕРХУ: МОНОКОЛЕСНИК НЕ СТРАДАЕТ, А ПОЛУЧАЕТ БОНУС УЛЫБКИ! 🌟
+      // 1. Shatter effect
+      this.createShatterEffect(obsX, obsY, shardColors);
+
+      if (texKey.includes('taxi')) {
+        soundManager.playTaxiHonk();
+        this.createSpeechBubble(obsX, obsY - 62, `«${RU.taxiShout}»`);
+        this.createEjectedDriverEffect(obsX, obsY);
+      }
+
+      // Destroy the smashed obstacle
+      obstacleObj.destroy();
+
+      // 2. Unicycle rider does not suffer (no damage, no speed penalty)
+      if (this.shields < this.maxShields) {
+        this.shields++;
+      }
+      this.combo = Math.min(10, this.combo + 1);
+      const bonusPoints = 350 * this.combo;
+      this.score += bonusPoints;
+      this.battery = Math.min(100, this.battery + 15);
+      this.tricksCount++;
+
+      // 3. Cheerful bounce upward off the obstacle
+      const bounceVelY = this.inputState.jump ? -520 : -420;
+      pBody.setVelocityY(bounceVelY);
+      this.isAirborne = true;
+
+      // 4. Sound & Speech for smile bonus
+      soundManager.playSmileBonus();
+      this.triggerSpeech(RU.smileBonusSpeech || 'УЛЫБНИСЬ! МУХА-ХА!');
+
+      // 5. Floating text: "БОНУС УЛЫБКИ!"
+      this.createFloatingText(obsX, obsY - 55, `😊 ${RU.smileBonus || 'БОНУС УЛЫБКИ!'} +${bonusPoints}`, '#facc15');
+      this.createFloatingText(p.x, p.y - 75, '😄✨ МУХА-ХА! ✨😄', '#38bdf8');
+
+      // 6. Expanding golden smile shockwave & emoji burst
+      const smileWave = this.add.circle(obsX, obsY - 10, 16, 0xfacc15, 0.9);
+      smileWave.setDepth(16);
+      this.tweens.add({
+        targets: smileWave,
+        scale: 4.5,
+        alpha: 0,
+        duration: 450,
+        ease: 'Quad.easeOut',
+        onComplete: () => smileWave.destroy(),
+      });
+
+      const emojis = ['😊', '😄', '⭐', '✨'];
+      for (let i = 0; i < 4; i++) {
+        const em = this.add.text(obsX + (i - 1.5) * 22, obsY - 20, emojis[i % emojis.length], {
+          fontSize: '22px',
+        }).setOrigin(0.5).setDepth(18);
+        this.tweens.add({
+          targets: em,
+          y: obsY - 80 - Phaser.Math.Between(10, 40),
+          x: em.x + Phaser.Math.Between(-30, 30),
+          alpha: 0,
+          scale: 1.4,
+          duration: 650,
+          ease: 'Back.easeOut',
+          onComplete: () => em.destroy(),
+        });
+      }
+
+      // 7. Brief invulnerability buffer (180ms)
+      this.isInvulnerable = true;
+      this.time.delayedCall(180, () => {
+        this.isInvulnerable = false;
+      });
+
+      this.emitStats();
+      return;
+    }
+
+    // Обычное горизонтальное столкновение на ходу: урон и потеря щитов
+    this.shields--;
+    soundManager.playHit();
+    this.cameras.main.shake(200, 0.018);
+
+    // Speed loss and knockback from hitting a solid object
+    pBody.setVelocityX(pBody.velocity.x * 0.35);
+
+    if (texKey.includes('taxi')) {
       soundManager.playTaxiHonk();
       soundManager.speakTaxiVoice(RU.taxiPhoneShout);
       soundManager.speakTaxiSmashVoice();
@@ -1463,6 +1661,222 @@ export class GameScene extends Phaser.Scene {
           }
           this.isInvulnerable = false;
         },
+      });
+    }
+  }
+
+  private handleHitDrone(playerObj: any, droneObj: any) {
+    if (this.isInvulnerable || this.isGameOver || this.isVictory) return;
+    if (!droneObj || droneObj.active === false) return;
+
+    const p = this.player;
+    const pBody = p.body as Phaser.Physics.Arcade.Body;
+    const drone = droneObj as Phaser.Physics.Arcade.Sprite;
+
+    // Check if player lands/stomps the drone from above (or high jump onto it)
+    const droneTop = drone.body ? drone.body.top : (drone.y - 18);
+    const pBottom = pBody.bottom;
+    const isInAir = this.isAirborne || !pBody.blocked.down || pBody.velocity.y !== 0;
+    const isDescendingOrApex = pBody.velocity.y >= -40;
+    const isAboveDrone = pBottom <= droneTop + 34 || p.y < drone.y - 14;
+
+    const isStompFromAbove = isInAir && isDescendingOrApex && isAboveDrone;
+
+    if (isStompFromAbove) {
+      // 🌟 ДРОН СБИТ СВЕРХУ: МОНОКОЛЕСНИК ПОЛУЧАЕТ БОНУС УЛЫБКИ! 🌟
+      const dX = drone.x;
+      const dY = drone.y;
+
+      // Shatter drone parts (metallic shards, cyan props, LED sparks)
+      this.createShatterEffect(dX, dY, [0x0f172a, 0x38bdf8, 0xf59e0b, 0xef4444, 0x22c55e]);
+      drone.destroy();
+
+      if (this.shields < this.maxShields) {
+        this.shields++;
+      }
+      this.combo = Math.min(10, this.combo + 1);
+      const bonusPoints = 500 * this.combo;
+      this.score += bonusPoints;
+      this.battery = Math.min(100, this.battery + 20);
+      this.tricksCount++;
+
+      // Cheerful bounce upward
+      pBody.setVelocityY(this.inputState.jump ? -550 : -450);
+      this.isAirborne = true;
+
+      // Sound & Speech for smile bonus
+      soundManager.playSmileBonus();
+      this.triggerSpeech(RU.smileBonusSpeech || 'УЛЫБНИСЬ! МУХА-ХА!');
+
+      this.createFloatingText(dX, dY - 50, `😊 ${RU.smileBonus || 'БОНУС УЛЫБКИ!'} +${bonusPoints}`, '#facc15');
+      this.createFloatingText(dX, dY - 24, RU.droneSmashed || 'ДРОН СБИТ! ХИ-ХИ БОЛЬШЕ НЕТ!', '#10b981');
+
+      // Golden smile wave
+      const smileWave = this.add.circle(dX, dY, 16, 0xfacc15, 0.9);
+      smileWave.setDepth(16);
+      this.tweens.add({
+        targets: smileWave,
+        scale: 4.5,
+        alpha: 0,
+        duration: 450,
+        ease: 'Quad.easeOut',
+        onComplete: () => smileWave.destroy(),
+      });
+
+      // Brief invulnerability buffer
+      this.isInvulnerable = true;
+      this.time.delayedCall(200, () => {
+        this.isInvulnerable = false;
+      });
+
+      this.emitStats();
+      return;
+    }
+
+    // Side collision with drone: standard obstacle hit
+    this.handleHitObstacle(playerObj, droneObj);
+  }
+
+  private handleHitPoop(playerObj: any, poopObj: any) {
+    if (this.isInvulnerable || this.isGameOver || this.isVictory) return;
+    if (!poopObj || poopObj.active === false) return;
+
+    const sourceDrone = poopObj.getData('sourceDrone') as Phaser.Physics.Arcade.Sprite | undefined;
+    const poopX = poopObj.x;
+    const poopY = poopObj.y;
+    poopObj.destroy();
+
+    const p = this.player;
+    const pBody = p.body as Phaser.Physics.Arcade.Body;
+
+    // Obstacle damage: shields loss!
+    this.shields--;
+    soundManager.playHit();
+    soundManager.playPoopSplatSound();
+    this.cameras.main.shake(200, 0.018);
+
+    // Speed loss and knockback from poop impact
+    pBody.setVelocityX(pBody.velocity.x * 0.35);
+
+    // Poop splat on ground / road
+    this.createPoopSplat(poopX, Math.min(poopY, 578));
+
+    // Splat splash on player body
+    for (let i = 0; i < 10; i++) {
+      const drop = this.add.circle(
+        p.x + Phaser.Math.Between(-15, 15),
+        p.y + Phaser.Math.Between(-35, 15),
+        Phaser.Math.Between(3, 5),
+        0x78350f
+      );
+      drop.setDepth(15);
+      this.tweens.add({
+        targets: drop,
+        y: drop.y + Phaser.Math.Between(15, 45),
+        x: drop.x + Phaser.Math.Between(-25, 25),
+        alpha: 0,
+        duration: 500,
+        onComplete: () => drop.destroy(),
+      });
+    }
+
+    // Floating text on Sema
+    this.createFloatingText(p.x, p.y - 70, `💩 ${RU.hitPoopAlert || 'КАКАШКА С ДРОНА!'} -1 ЩИТ`, '#854d0e');
+
+    // 🌟 ДРОН СМЕЕТСЯ ХИ-ХИ ГОЛОСОМ СМЕШНОГО ГНОМА! 🌟
+    soundManager.speakGnomeLaugh();
+
+    // Find the drone that dropped it or nearest drone
+    let droneToLaugh = sourceDrone;
+    if (!droneToLaugh || !droneToLaugh.active) {
+      let minDist = 999999;
+      (this.drones.getChildren() as Phaser.Physics.Arcade.Sprite[]).forEach((d) => {
+        if (!d.active) return;
+        const dist = Math.abs(d.x - p.x);
+        if (dist < minDist) {
+          minDist = dist;
+          droneToLaugh = d;
+        }
+      });
+    }
+
+    if (droneToLaugh && droneToLaugh.active) {
+      // Speech bubble above drone
+      this.createSpeechBubble(droneToLaugh.x, droneToLaugh.y - 50, `«${RU.droneGnomeHit || 'ХИ-ХИ! ПОПАЛ!'}»`);
+      // Floating text with gnome icon
+      this.createFloatingText(droneToLaugh.x, droneToLaugh.y - 32, '🧙‍♂️ ХИ-ХИ-ХИ! 😆', '#facc15');
+
+      // Funny victory bounce animation for the drone
+      this.tweens.add({
+        targets: droneToLaugh,
+        y: droneToLaugh.y - 25,
+        yoyo: true,
+        repeat: 3,
+        duration: 140,
+        ease: 'Quad.easeInOut',
+      });
+    }
+
+    // Reset combo
+    this.combo = 1;
+
+    // Damage / Game Over check
+    if (this.shields <= 0) {
+      this.createFloatingText(p.x, p.y - 85, '💥 КРИТИЧЕСКИЙ УРОН! 💥', '#ef4444');
+      this.triggerGameOver();
+    } else {
+      // Temporary invulnerability flashing
+      this.isInvulnerable = true;
+      this.triggerSpeech(RU.phrases[4] || 'ОЙ!');
+      this.tweens.add({
+        targets: this.player,
+        alpha: 0.3,
+        yoyo: true,
+        repeat: 5,
+        duration: 140,
+        onComplete: () => {
+          if (this.player) {
+            this.player.setAlpha(1);
+          }
+          this.isInvulnerable = false;
+        },
+      });
+    }
+
+    this.emitStats();
+  }
+
+  private createPoopSplat(x: number, y: number) {
+    const splat = this.add.image(x, y, 'poop_splat');
+    splat.setDepth(8);
+    splat.setScale(0.85);
+    this.tweens.add({
+      targets: splat,
+      scaleX: 1.25,
+      scaleY: 1.15,
+      alpha: 0,
+      delay: 2400,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => splat.destroy(),
+    });
+
+    // Brown splash particles
+    for (let i = 0; i < 6; i++) {
+      const drop = this.add.circle(
+        x + Phaser.Math.Between(-12, 12),
+        y - Phaser.Math.Between(2, 14),
+        Phaser.Math.Between(2, 4),
+        0x78350f
+      );
+      drop.setDepth(9);
+      this.tweens.add({
+        targets: drop,
+        y: y + Phaser.Math.Between(2, 8),
+        x: drop.x + Phaser.Math.Between(-20, 20),
+        alpha: 0,
+        duration: 450,
+        onComplete: () => drop.destroy(),
       });
     }
   }
@@ -1560,6 +1974,9 @@ export class GameScene extends Phaser.Scene {
     if (this.isGameOver || this.isVictory) return;
     this.isGameOver = true;
     this.isInvulnerable = true;
+    this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
+    this.isBoosting = false;
+    this.boostHoldDuration = 0;
     this.fallsCount++;
     soundManager.stopMotor();
     soundManager.playHit();
@@ -1635,6 +2052,11 @@ export class GameScene extends Phaser.Scene {
     // 3. Reset game state flags and stats
     this.isGameOver = false;
     this.isVictory = false;
+    this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
+    this.isBoosting = false;
+    if (this.poopProjectiles) {
+      this.poopProjectiles.clear(true, true);
+    }
     if (this.physics?.world) {
       this.physics.world.timeScale = 1.0;
     }
