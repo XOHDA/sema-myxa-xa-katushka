@@ -2,11 +2,14 @@ export type GameState = 'MENU' | 'PLAYING' | 'PAUSED' | 'GAMEOVER' | 'VICTORY';
 
 export type LevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
+export type WeatherType = 'clear' | 'light-rain';
+
 export interface LevelConfig {
   id: LevelId;
   name: string;
   subtitle: string;
   theme: 'day-to-night' | 'night-neon' | 'industrial' | 'sunset-highway' | 'storm' | 'cyber';
+  weather: WeatherType;
   length: number; // in world coordinates
   gravity: number;
   description: string;
@@ -28,6 +31,10 @@ export interface PlayerStats {
   fallsCount: number;
   elapsedTime: number; // in seconds
   combo: number;
+  comboProgress: number; // 0 - 100% to next multiplier tier
+  comboTimer: number; // seconds remaining before decay
+  comboMaxTimer: number; // base decay window (3.2s)
+  activeTrickType: 'jump' | 'grind' | 'balance' | null;
   speedKmh: number;
   maxSpeedKmh: number;
   avgSpeedKmh: number;
@@ -41,11 +48,20 @@ export interface PlayerStats {
   isSuperBoost: boolean;
   isWobbling: boolean;
   isTiltback: boolean;
+  weather: WeatherType;
   activeSpeech: string | null;
   trickPopup: string | null;
   currentLevel: LevelId;
   levelName: string;
   levelLength: number;
+  // Boss Duel (Фантомас на моноколесе SV)
+  bossDuelActive: boolean;
+  bossName?: string;
+  bossDistanceLead?: number; // meters player is ahead (+) or behind (-)
+  bossStunned?: boolean;
+  bossSlipstreamActive?: boolean;
+  bossSlipstreamCharge?: number; // 0 - 100%
+  isBossLoss?: boolean;
 }
 
 export interface GameSettings {

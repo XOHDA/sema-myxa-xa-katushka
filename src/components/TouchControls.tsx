@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { InputState } from '../types';
 import { ArrowLeft, ArrowRight, ArrowDown, Zap, ChevronUp } from 'lucide-react';
 import { RU } from '../localization/ru';
+import { soundManager } from '../audio/soundManager';
 
 interface TouchControlsProps {
   onInputChange: (input: InputState) => void;
@@ -147,6 +148,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           aria-label={RU.boostButton}
           onPointerDown={(e) => {
             e.preventDefault();
+            soundManager.triggerBoostHaptic(false);
             handlePointerDown('boost', e.pointerId, e.currentTarget);
           }}
           onPointerUp={(e) => handlePointerUpOrCancel(e.pointerId)}

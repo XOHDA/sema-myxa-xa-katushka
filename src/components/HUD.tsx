@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlayerStats } from '../types';
+import { PlayerStats, WeatherType } from '../types';
 import { Shield, Zap, Pause, Flame, Battery, Compass, Gauge, AlertTriangle, Cpu } from 'lucide-react';
 import { RU } from '../localization/ru';
 
@@ -9,6 +9,26 @@ interface HUDProps {
 }
 
 export const HUD: React.FC<HUDProps> = ({ stats, onPause }) => {
+  const getWeatherBadge = (weather?: WeatherType) => {
+    switch (weather) {
+      case 'light-rain':
+        return {
+          label: RU.weatherLightRain,
+          icon: '🌧️',
+          style: 'bg-sky-500/20 text-sky-300 border-sky-500/40 animate-pulse',
+        };
+      case 'clear':
+      default:
+        return {
+          label: RU.weatherClear,
+          icon: '☀️',
+          style: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        };
+    }
+  };
+
+  const weatherBadge = getWeatherBadge(stats.weather);
+
   return (
     <div
       id="hud-overlay"
@@ -23,26 +43,34 @@ export const HUD: React.FC<HUDProps> = ({ stats, onPause }) => {
           <span className="text-[9px] font-black uppercase bg-sky-500 text-black px-1.5 py-0.5 rounded tracking-wider shrink-0">
             УРОВЕНЬ {stats.currentLevel || 1}
           </span>
-          <span className="text-[11px] font-bold text-sky-200 truncate max-w-[160px] sm:max-w-[240px]">
+          <span className="text-[11px] font-bold text-sky-200 truncate max-w-[120px] sm:max-w-[200px]">
             {stats.levelName || `Уровень ${stats.currentLevel || 1}`}
+          </span>
+          {/* Dynamic Weather Badge */}
+          <span
+            id="hud-weather-badge"
+            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border shrink-0 transition-all duration-300 ${weatherBadge.style}`}
+          >
+            <span>{weatherBadge.icon}</span>
+            <span className="hidden sm:inline">{weatherBadge.label}</span>
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-300 shrink-0">
           <span className="text-emerald-400 font-mono">{stats.distance}м</span>
           <span className="text-zinc-600">/</span>
-          <span className="text-zinc-400 font-mono">{stats.levelLength || 5600}м</span>
+          <span className="text-zinc-400 font-mono">{stats.levelLength || 16800}м</span>
           <div className="w-12 sm:w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
             <div
               className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 transition-all duration-200"
               style={{
-                width: `${Math.min(100, Math.max(0, (stats.distance / (stats.levelLength || 5600)) * 100))}%`,
+                width: `${Math.min(100, Math.max(0, (stats.distance / (stats.levelLength || 16800)) * 100))}%`,
               }}
             />
           </div>
         </div>
       </div>
 
-      {/* Верхний компактный ряд: ЗАЩИТА (слева), СЧЁТ (по центру), ЗАРЯД и ПАУЗА (справа) */}
+      {/* Верхний компактный ряд: ЗАЩИТА (слева), СЧЁТ И КОМБО (по центру), ЗАРЯД и ПАУЗА (справа) */}
       <div className="flex items-center justify-between gap-2">
         {/* ЗАЩИТА: 3 единицы */}
         <div
@@ -64,21 +92,94 @@ export const HUD: React.FC<HUDProps> = ({ stats, onPause }) => {
           </div>
         </div>
 
-        {/* СЧЁТ & КОМБО */}
+        {/* СЧЁТ & КОМБО-МНОЖИТЕЛЬ С ПРОГРЕССОМ ТРЮКОВ */}
         <div
           id="hud-score-panel"
-          className="flex flex-col items-center bg-black/60 backdrop-blur-md px-3 py-1 rounded-xl border border-amber-500/40 pointer-events-auto"
+          className="flex flex-col items-center bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-amber-500/50 pointer-events-auto min-w-[130px] sm:min-w-[170px] shadow-[0_0_15px_rgba(245,158,11,0.2)]"
         >
-          <div className="flex items-center gap-1.5">
+          {/* Счёт */}
+          <div className="flex items-center gap-1.5 leading-none">
             <span className="text-[10px] text-amber-300 font-bold tracking-wider">{RU.score}</span>
-            <span className="text-base font-black text-amber-400 tracking-wide">
+            <span className="text-base sm:text-lg font-black text-amber-400 tracking-wide font-mono">
               {stats.score.toLocaleString('ru-RU')}
             </span>
           </div>
-          {stats.combo > 1 && (
-            <span className="text-[9px] font-black text-emerald-400 animate-pulse tracking-widest">
-              КОМБО x{stats.combo}
+
+          {/* Плашка Комбо-множителя и активного трюка */}
+          <div className="w-full flex items-center justify-between gap-1.5 mt-1 pt-1 border-t border-zinc-800/80">
+            <div className="flex items-center gap-1">
+              <span
+                className={`text-[10px] sm:text-[11px] font-black tracking-widest px-1.5 py-0.5 rounded transition-all ${
+                  stats.combo >= 8
+                    ? 'bg-cyan-500 text-black shadow-[0_0_10px_#06b6d4] animate-pulse'
+                    : stats.combo >= 5
+                    ? 'bg-rose-500 text-white shadow-[0_0_8px_#f43f5e]'
+                    : stats.combo >= 3
+                    ? 'bg-amber-500 text-black shadow-[0_0_6px_#f59e0b]'
+                    : stats.combo > 1
+                    ? 'bg-emerald-500 text-black'
+                    : 'bg-zinc-800 text-zinc-300'
+                }`}
+              >
+                x{stats.combo}
+              </span>
+              {stats.activeTrickType && (
+                <span
+                  className={`text-[8px] sm:text-[9px] font-black uppercase tracking-wider px-1 py-0.5 rounded animate-pulse ${
+                    stats.activeTrickType === 'jump'
+                      ? 'bg-sky-950 text-sky-300 border border-sky-500/60'
+                      : stats.activeTrickType === 'grind'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/60'
+                      : 'bg-amber-950 text-amber-300 border border-amber-500/60'
+                  }`}
+                >
+                  {stats.activeTrickType === 'jump'
+                    ? '🦘 ПРЫЖОК'
+                    : stats.activeTrickType === 'grind'
+                    ? '🛹 ГРИНД'
+                    : '⚖️ БАЛАНС'}
+                </span>
+              )}
+            </div>
+
+            {/* Процент до следующего множителя */}
+            <span className="text-[9px] font-mono font-bold text-zinc-400">
+              {stats.combo >= 10 ? 'MAX' : `${stats.comboProgress || 0}%`}
             </span>
+          </div>
+
+          {/* Шкала накопления прогресса до следующего комбо */}
+          <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden mt-1 border border-zinc-700/60 relative">
+            <div
+              className={`h-full transition-all duration-100 ${
+                stats.combo >= 8
+                  ? 'bg-gradient-to-r from-cyan-400 to-sky-300 shadow-[0_0_8px_#38bdf8]'
+                  : stats.combo >= 5
+                  ? 'bg-gradient-to-r from-amber-400 to-rose-500 shadow-[0_0_6px_#f43f5e]'
+                  : 'bg-gradient-to-r from-emerald-400 to-amber-400'
+              }`}
+              style={{ width: `${stats.combo >= 10 ? 100 : (stats.comboProgress || 0)}%` }}
+            />
+          </div>
+
+          {/* Таймер удержания комбо (если комбо > 1 и тикает обратный отсчёт) */}
+          {stats.combo > 1 && stats.comboTimer > 0 && (
+            <div className="w-full flex items-center justify-between gap-1 mt-0.5 text-[8px] text-zinc-400 font-mono">
+              <span className="text-[7px] uppercase tracking-wider text-zinc-500">УДЕРЖАНИЕ</span>
+              <div className="flex-1 h-0.5 bg-zinc-800 rounded-full overflow-hidden mx-1">
+                <div
+                  className={`h-full transition-all duration-100 ${
+                    stats.comboTimer <= 1.0 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-400'
+                  }`}
+                  style={{
+                    width: `${Math.min(100, Math.max(0, (stats.comboTimer / (stats.comboMaxTimer || 3.2)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className={stats.comboTimer <= 1.0 ? 'text-rose-400 font-black' : 'text-zinc-300'}>
+                {stats.comboTimer.toFixed(1)}с
+              </span>
+            </div>
           )}
         </div>
 

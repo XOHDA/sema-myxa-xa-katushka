@@ -7,7 +7,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level1Name,
     subtitle: 'Разминка: парки, бордюры и сходка VOLTARZ',
     theme: 'day-to-night',
-    length: 5600,
+    weather: 'clear',
+    length: 16800,
     gravity: 1200,
     description: RU.level1Desc,
     baseSpeed: 300, // ~44 km/h
@@ -21,7 +22,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level2Name,
     subtitle: 'Неоновые крыши, трамплины и огни ночного мегаполиса',
     theme: 'night-neon',
-    length: 6000,
+    weather: 'clear',
+    length: 18000,
     gravity: 1220,
     description: RU.level2Desc,
     baseSpeed: 320, // ~47 km/h
@@ -35,7 +37,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level3Name,
     subtitle: 'Контейнеры, трубы, металлоконструкции и перепады высот',
     theme: 'industrial',
-    length: 6400,
+    weather: 'clear',
+    length: 19200,
     gravity: 1240,
     description: RU.level3Desc,
     baseSpeed: 340, // ~50 km/h
@@ -49,7 +52,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level4Name,
     subtitle: 'Плотный поток самокатчиков, скамейки и брошенные препятствия',
     theme: 'sunset-highway',
-    length: 6800,
+    weather: 'clear',
+    length: 20400,
     gravity: 1250,
     description: RU.level4Desc,
     baseSpeed: 360, // ~53 km/h
@@ -63,7 +67,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level5Name,
     subtitle: 'Скоростные прямые эстакады, трамплины и прыжки на 100+ км/ч',
     theme: 'day-to-night',
-    length: 7200,
+    weather: 'clear',
+    length: 21600,
     gravity: 1260,
     description: RU.level5Desc,
     baseSpeed: 380, // ~56 km/h
@@ -77,7 +82,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level6Name,
     subtitle: 'Глубокие лужи, воблинг на мокром асфальте и решетки ливнёвки',
     theme: 'storm',
-    length: 7600,
+    weather: 'light-rain',
+    length: 22800,
     gravity: 1270,
     description: RU.level6Desc,
     baseSpeed: 400, // ~59 km/h
@@ -91,7 +97,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level7Name,
     subtitle: 'Опасные обрывы, узкие балки над пропастью и агрессивные зацеперы',
     theme: 'industrial',
-    length: 8000,
+    weather: 'clear',
+    length: 24000,
     gravity: 1280,
     description: RU.level7Desc,
     baseSpeed: 420, // ~62 km/h
@@ -105,7 +112,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level8Name,
     subtitle: 'Широкие многополосные прямые, скоростные разъезды и затяжной разгон',
     theme: 'sunset-highway',
-    length: 8400,
+    weather: 'clear',
+    length: 25200,
     gravity: 1290,
     description: RU.level8Desc,
     baseSpeed: 440, // ~65 km/h
@@ -119,7 +127,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level9Name,
     subtitle: 'Головокружительная высота крыш, мостки над бездной и трамплины',
     theme: 'night-neon',
-    length: 8800,
+    weather: 'clear',
+    length: 26400,
     gravity: 1300,
     description: RU.level9Desc,
     baseSpeed: 460, // ~68 km/h
@@ -133,7 +142,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level10Name,
     subtitle: 'Подземные своды, мигающие фонари и плотные завалы на 115+ км/ч',
     theme: 'cyber',
-    length: 9200,
+    weather: 'clear',
+    length: 27600,
     gravity: 1310,
     description: RU.level10Desc,
     baseSpeed: 480, // ~71 km/h
@@ -145,9 +155,10 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
   11: {
     id: 11,
     name: RU.level11Name,
-    subtitle: 'Грозовой фронт, шквальный ветер, узкий мост и лабиринт конусов',
+    subtitle: 'Скоростной мост, встречный ветер, узкая проезжая часть и лабиринт конусов',
     theme: 'storm',
-    length: 9600,
+    weather: 'clear',
+    length: 28800,
     gravity: 1320,
     description: RU.level11Desc,
     baseSpeed: 500, // ~74 km/h
@@ -161,7 +172,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level12Name,
     subtitle: 'Кибер-магистраль: встречный транспорт и реактивный темп',
     theme: 'cyber',
-    length: 10000,
+    weather: 'clear',
+    length: 30000,
     gravity: 1330,
     description: RU.level12Desc,
     baseSpeed: 520, // ~76 km/h
@@ -175,7 +187,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level13Name,
     subtitle: 'Бешеный ночной трафик, молниеносные маневры на 130+ км/ч',
     theme: 'night-neon',
-    length: 10500,
+    weather: 'clear',
+    length: 31500,
     gravity: 1340,
     description: RU.level13Desc,
     baseSpeed: 540, // ~79 km/h
@@ -189,7 +202,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level14Name,
     subtitle: 'ШИМ 90%! Опасность продава колеса на 145+ км/ч',
     theme: 'sunset-highway',
-    length: 11000,
+    weather: 'clear',
+    length: 33000,
     gravity: 1350,
     description: RU.level14Desc,
     baseSpeed: 560, // ~82 km/h
@@ -203,7 +217,8 @@ export const LEVELS: Record<LevelId, LevelConfig> = {
     name: RU.level15Name,
     subtitle: 'Ультимативный заезд VOLTARZ: максимум скорости до 150 км/ч, адреналина и преград!',
     theme: 'cyber',
-    length: 12000,
+    weather: 'clear',
+    length: 36000,
     gravity: 1360,
     description: RU.level15Desc,
     baseSpeed: 580, // ~85 km/h

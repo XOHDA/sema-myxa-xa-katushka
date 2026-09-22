@@ -62,6 +62,12 @@ export function generateGameTextures(scene: Phaser.Scene) {
   createFlyingDroneTexture(scene);
   createPoopTexture(scene);
   createPoopSplatTexture(scene);
+
+  // 10. DYNAMIC WEATHER & ATMOSPHERE PARTICLES
+  createWeatherParticleTextures(scene);
+
+  // 11. HIGH-ENERGY IMPACT & VOLT SPARK SYSTEM PARTICLES
+  createSparkParticleTextures(scene);
 }
 
 function createSemaTexture(
@@ -2274,5 +2280,689 @@ function createPoopSplatTexture(scene: Phaser.Scene) {
   });
 
   scene.textures.addCanvas('poop_splat', canvas);
+}
+
+function createWeatherParticleTextures(scene: Phaser.Scene) {
+  // 1. Sleek atmospheric raindrop streak
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 6;
+    canvas.height = 36;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createLinearGradient(3, 0, 3, 36);
+      grad.addColorStop(0, 'rgba(186, 230, 253, 0.05)');
+      grad.addColorStop(0.4, 'rgba(186, 230, 253, 0.6)');
+      grad.addColorStop(1, 'rgba(240, 249, 255, 0.95)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(3, 0);
+      ctx.lineTo(4.5, 30);
+      ctx.arc(3, 33, 1.8, 0, Math.PI);
+      ctx.lineTo(1.5, 30);
+      ctx.closePath();
+      ctx.fill();
+      scene.textures.addCanvas('weather_raindrop', canvas);
+    }
+  }
+
+  // 2. Raindrop splash on asphalt / road
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 12;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Expanding water ripple
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(12, 6, 9, 3.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Micro splash beads
+      ctx.fillStyle = 'rgba(240, 249, 255, 0.85)';
+      ctx.beginPath();
+      ctx.arc(6, 4, 1.2, 0, Math.PI * 2);
+      ctx.arc(18, 4, 1.2, 0, Math.PI * 2);
+      ctx.arc(12, 2, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      scene.textures.addCanvas('weather_rain_splash', canvas);
+    }
+  }
+
+  // 3. Volumetric fog removed to ensure 100% crystal-clear road visibility
+  // Replaced with clean ambient light streak
+
+  // 4. Cyber holographic neon rain streak
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 6;
+    canvas.height = 38;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createLinearGradient(3, 0, 3, 38);
+      grad.addColorStop(0, 'rgba(6, 182, 212, 0.05)');
+      grad.addColorStop(0.5, 'rgba(34, 211, 238, 0.7)');
+      grad.addColorStop(1, 'rgba(255, 255, 255, 1)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(1.5, 0, 3, 38);
+
+      // Glowing tip
+      ctx.fillStyle = '#06b6d4';
+      ctx.beginPath();
+      ctx.arc(3, 35, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      scene.textures.addCanvas('weather_cyber_rain', canvas);
+    }
+  }
+
+  // 5. Industrial hot smog embers & sparks
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(8, 8, 1.5, 8, 8, 8);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.3, '#fbbf24');
+      grad.addColorStop(0.65, '#f97316');
+      grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(8, 8, 8, 0, Math.PI * 2);
+      ctx.fill();
+      scene.textures.addCanvas('weather_ember', canvas);
+    }
+  }
+
+  // 6. Warm sunbeam pollen / golden dust mote
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(8, 8, 2, 8, 8, 8);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.4, 'rgba(254, 240, 138, 0.85)');
+      grad.addColorStop(0.8, 'rgba(251, 191, 36, 0.35)');
+      grad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(8, 8, 8, 0, Math.PI * 2);
+      ctx.fill();
+      scene.textures.addCanvas('weather_pollen', canvas);
+    }
+  }
+}
+
+function createSparkParticleTextures(scene: Phaser.Scene) {
+  // 1. Gold high-voltage VOLT spark (starburst + incandescent core)
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 18;
+    canvas.height = 18;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(9, 9, 1.5, 9, 9, 8.5);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.25, '#fef08a');
+      grad.addColorStop(0.65, '#f59e0b');
+      grad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(9, 9, 8.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sharp 4-point glint rays
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(9, 1);
+      ctx.lineTo(9, 17);
+      ctx.moveTo(1, 9);
+      ctx.lineTo(17, 9);
+      ctx.stroke();
+
+      scene.textures.addCanvas('spark_point_gold', canvas);
+    }
+  }
+
+  // 2. Fiery orange metal friction spark (for falls, grinding, obstacle collisions)
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(8, 8, 1.2, 8, 8, 7.5);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.3, '#f97316');
+      grad.addColorStop(0.7, '#ea580c');
+      grad.addColorStop(1, 'rgba(220, 38, 38, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(8, 8, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(8, 2);
+      ctx.lineTo(8, 14);
+      ctx.moveTo(2, 8);
+      ctx.lineTo(14, 8);
+      ctx.stroke();
+
+      scene.textures.addCanvas('spark_point_orange', canvas);
+    }
+  }
+
+  // 3. Electric cyan plasma arc spark (for electric surges and lightning)
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(8, 8, 1.2, 8, 8, 7.5);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.35, '#38bdf8');
+      grad.addColorStop(0.7, '#0284c7');
+      grad.addColorStop(1, 'rgba(14, 165, 233, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(8, 8, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#e0f2fe';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(8, 1);
+      ctx.lineTo(8, 15);
+      ctx.moveTo(1, 8);
+      ctx.lineTo(15, 8);
+      ctx.stroke();
+
+      scene.textures.addCanvas('spark_point_cyan', canvas);
+    }
+  }
+
+  // 4. White-hot diamond spark flare
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 12;
+    canvas.height = 12;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(6, 0);
+      ctx.lineTo(8, 6);
+      ctx.lineTo(6, 12);
+      ctx.lineTo(4, 6);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, 6);
+      ctx.lineTo(6, 8);
+      ctx.lineTo(12, 6);
+      ctx.lineTo(6, 4);
+      ctx.closePath();
+      ctx.fill();
+
+      scene.textures.addCanvas('spark_point_white', canvas);
+    }
+  }
+
+  // 5. Elongated friction streak for grinding along asphalt
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 18;
+    canvas.height = 6;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createLinearGradient(0, 3, 18, 3);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+      grad.addColorStop(0.4, '#fbbf24');
+      grad.addColorStop(0.8, '#f97316');
+      grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(9, 3, 9, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      scene.textures.addCanvas('spark_streak', canvas);
+    }
+  }
+
+  // 6. Expanding electric shockwave ring
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 36;
+    canvas.height = 36;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(18, 18, 14, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(18, 18, 14, 0, Math.PI * 2);
+      ctx.stroke();
+
+      scene.textures.addCanvas('spark_ring', canvas);
+    }
+  }
+
+  // 7. Boss Fantômas on Monocycle SV Textures
+  createFantomasBossTextures(scene);
+}
+
+function createFantomasBossTextures(scene: Phaser.Scene) {
+  const states: Array<{ key: string; boost?: boolean; stun?: boolean; laugh?: boolean }> = [
+    { key: 'boss_fantomas' },
+    { key: 'boss_fantomas_boost', boost: true },
+    { key: 'boss_fantomas_stun', stun: true },
+    { key: 'boss_fantomas_laugh', laugh: true },
+  ];
+
+  states.forEach((st) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 180;
+    canvas.height = 250;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.save();
+
+    const cx = 85;
+    const wheelY = 195;
+    const leanAngle = st.boost ? 0.28 : st.stun ? -0.22 : 0.05;
+
+    // Center pivot near wheel axle
+    ctx.translate(cx, wheelY);
+    ctx.rotate(leanAngle);
+    ctx.translate(-cx, -wheelY);
+
+    // ==========================================
+    // 1. DUAL EXHAUST PLASMA (Boost state only)
+    // ==========================================
+    if (st.boost) {
+      // Twin rear turbo plasma jets from SV back
+      const flameGrad = ctx.createLinearGradient(cx - 30, wheelY - 25, cx - 110, wheelY - 30);
+      flameGrad.addColorStop(0, '#ffffff');
+      flameGrad.addColorStop(0.2, '#06b6d4');
+      flameGrad.addColorStop(0.6, '#a855f7');
+      flameGrad.addColorStop(1, 'rgba(236, 72, 153, 0)');
+      ctx.fillStyle = flameGrad;
+
+      // Top jet
+      ctx.beginPath();
+      ctx.moveTo(cx - 28, wheelY - 35);
+      ctx.lineTo(cx - 95, wheelY - 42);
+      ctx.lineTo(cx - 28, wheelY - 26);
+      ctx.closePath();
+      ctx.fill();
+
+      // Lower jet
+      ctx.beginPath();
+      ctx.moveTo(cx - 26, wheelY - 18);
+      ctx.lineTo(cx - 85, wheelY - 22);
+      ctx.lineTo(cx - 26, wheelY - 10);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ==========================================
+    // 2. MONOCYCLE "SV" (SUPER WHEEL)
+    // ==========================================
+    // A. Heavy-duty knobby tire
+    ctx.fillStyle = '#09090b';
+    ctx.beginPath();
+    ctx.arc(cx, wheelY, 40, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tire tread lugs
+    ctx.strokeStyle = '#27272a';
+    ctx.lineWidth = 4;
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+      const tx = cx + Math.cos(a) * 38;
+      const ty = wheelY + Math.sin(a) * 38;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx + Math.cos(a) * 5, ty + Math.sin(a) * 5);
+      ctx.stroke();
+    }
+
+    // B. Inner custom carbon rim
+    ctx.fillStyle = '#18181b';
+    ctx.beginPath();
+    ctx.arc(cx, wheelY, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glowing Neon Purple & Cyan rim ring
+    ctx.strokeStyle = st.stun ? '#f59e0b' : '#a855f7';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, wheelY, 24, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, wheelY, 18, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center axle hub
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.arc(cx, wheelY, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // C. SV EUC Shell / Body
+    // Deep carbon violet armor shell
+    ctx.fillStyle = '#1e1b4b';
+    ctx.beginPath();
+    ctx.roundRect(cx - 26, wheelY - 65, 52, 60, [10, 10, 4, 4]);
+    ctx.fill();
+
+    // Inner dark plate
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.roundRect(cx - 22, wheelY - 60, 44, 50, 6);
+    ctx.fill();
+
+    // High-tech side LED matrix strips
+    ctx.fillStyle = st.stun ? '#ef4444' : '#06b6d4';
+    ctx.fillRect(cx - 20, wheelY - 54, 4, 38);
+    ctx.fillStyle = st.stun ? '#f59e0b' : '#a855f7';
+    ctx.fillRect(cx + 16, wheelY - 54, 4, 38);
+
+    // D. Prominent Glowing "SV" Badge!
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '900 16px "Montserrat", "Arial Black", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#06b6d4';
+    ctx.shadowBlur = 8;
+    ctx.fillText('SV', cx, wheelY - 34);
+    ctx.shadowBlur = 0; // reset
+
+    // Power pads (angular purple polymer)
+    ctx.fillStyle = '#6b21a8';
+    ctx.beginPath();
+    ctx.roundRect(cx - 28, wheelY - 48, 8, 22, 3);
+    ctx.roundRect(cx + 20, wheelY - 48, 8, 22, 3);
+    ctx.fill();
+
+    // Pedals with gold spikes
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(cx - 30, wheelY + 3, 60, 7);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(cx - 28, wheelY + 1, 56, 2);
+
+    // Front Headlight (projector beam right)
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(cx + 25, wheelY - 50, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rear Taillight (neon red bar left)
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(cx - 27, wheelY - 54, 3, 10);
+
+    // ==========================================
+    // 3. FANTÔMAS (RIDER IN ICONIC BLUE MASK)
+    // ==========================================
+    // Fluttering coat tails (behind back)
+    ctx.fillStyle = '#2e1065'; // Deep phantom violet
+    ctx.beginPath();
+    if (st.boost) {
+      ctx.moveTo(cx - 15, wheelY - 80);
+      ctx.lineTo(cx - 65, wheelY - 55);
+      ctx.lineTo(cx - 45, wheelY - 40);
+      ctx.lineTo(cx - 10, wheelY - 55);
+    } else {
+      ctx.moveTo(cx - 15, wheelY - 80);
+      ctx.lineTo(cx - 42, wheelY - 45);
+      ctx.lineTo(cx - 25, wheelY - 35);
+      ctx.lineTo(cx - 8, wheelY - 55);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Legs / Armored riding pants
+    ctx.fillStyle = '#1e1b4b';
+    ctx.beginPath();
+    ctx.roundRect(cx - 16, wheelY - 40, 14, 42, 4);
+    ctx.roundRect(cx + 2, wheelY - 40, 15, 42, 4);
+    ctx.fill();
+
+    // Reinforced Knee Armor (Gloss black with cyan edge)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - 17, wheelY - 26, 15, 14);
+    ctx.fillRect(cx + 3, wheelY - 26, 15, 14);
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - 17, wheelY - 26, 15, 14);
+    ctx.strokeRect(cx + 3, wheelY - 26, 15, 14);
+
+    // Torso / High-collared phantom coat
+    const torsoY = wheelY - 96;
+    ctx.fillStyle = '#3b0764'; // Imperial dark purple
+    ctx.beginPath();
+    ctx.roundRect(cx - 20, torsoY, 40, 56, [12, 12, 4, 4]);
+    ctx.fill();
+
+    // High standing collar
+    ctx.fillStyle = '#1e1b4b';
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, torsoY);
+    ctx.lineTo(cx - 22, torsoY - 14);
+    ctx.lineTo(cx - 6, torsoY + 2);
+    ctx.lineTo(cx + 6, torsoY + 2);
+    ctx.lineTo(cx + 22, torsoY - 14);
+    ctx.lineTo(cx + 14, torsoY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Coat silver buttons and lapels
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, torsoY + 6);
+    ctx.lineTo(cx, torsoY + 46);
+    ctx.stroke();
+
+    // Arms & Hands
+    if (st.stun) {
+      // Arms flailing upward in panic
+      ctx.strokeStyle = '#2e1065';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - 14, torsoY + 12);
+      ctx.lineTo(cx - 36, torsoY - 18);
+      ctx.moveTo(cx + 14, torsoY + 12);
+      ctx.lineTo(cx + 38, torsoY - 18);
+      ctx.stroke();
+
+      // Black gloves
+      ctx.fillStyle = '#09090b';
+      ctx.beginPath();
+      ctx.arc(cx - 38, torsoY - 22, 7, 0, Math.PI * 2);
+      ctx.arc(cx + 40, torsoY - 22, 7, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (st.laugh) {
+      // Right hand raised in victory fist pump
+      ctx.strokeStyle = '#2e1065';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx + 14, torsoY + 12);
+      ctx.lineTo(cx + 34, torsoY - 8);
+      ctx.lineTo(cx + 28, torsoY - 32);
+      ctx.stroke();
+
+      ctx.fillStyle = '#09090b';
+      ctx.beginPath();
+      ctx.arc(cx + 28, torsoY - 34, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Left hand on hip
+      ctx.beginPath();
+      ctx.moveTo(cx - 14, torsoY + 12);
+      ctx.lineTo(cx - 28, torsoY + 28);
+      ctx.lineTo(cx - 16, torsoY + 34);
+      ctx.stroke();
+    } else if (st.boost) {
+      // Aerodynamic forward lean: hands gripped low forward
+      ctx.strokeStyle = '#2e1065';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - 10, torsoY + 14);
+      ctx.lineTo(cx + 22, torsoY + 22);
+      ctx.lineTo(cx + 46, torsoY + 20);
+      ctx.stroke();
+
+      ctx.fillStyle = '#09090b';
+      ctx.beginPath();
+      ctx.arc(cx + 48, torsoY + 20, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Standard cruising stance: arms at sides ready
+      ctx.strokeStyle = '#2e1065';
+      ctx.lineWidth = 9;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - 14, torsoY + 14);
+      ctx.lineTo(cx - 24, torsoY + 36);
+      ctx.lineTo(cx - 16, torsoY + 44);
+      ctx.moveTo(cx + 14, torsoY + 14);
+      ctx.lineTo(cx + 24, torsoY + 36);
+      ctx.lineTo(cx + 18, torsoY + 44);
+      ctx.stroke();
+    }
+
+    // ==========================================
+    // 4. ICONIC FANTÔMAS BLUE MASK & FACE
+    // ==========================================
+    const headY = torsoY - 20;
+
+    // Smooth Blue Latex Mask (Iconic Fantômas visage)
+    const maskGrad = ctx.createRadialGradient(cx + 4, headY - 4, 3, cx, headY, 18);
+    maskGrad.addColorStop(0, '#7dd3fc'); // Highlight sky cyan
+    maskGrad.addColorStop(0.5, '#0284c7'); // Mid metallic blue
+    maskGrad.addColorStop(1, '#0369a1');   // Dark mask contour
+    ctx.fillStyle = maskGrad;
+    ctx.beginPath();
+    ctx.ellipse(cx, headY, 15, 19, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mask cheekbones & jaw contour
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Menacing glowing eyes
+    if (st.stun) {
+      // Stunned X eyes
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 2.5;
+      [-5, 5].forEach((ox) => {
+        ctx.beginPath();
+        ctx.moveTo(cx + ox - 4, headY - 4);
+        ctx.lineTo(cx + ox + 4, headY + 4);
+        ctx.moveTo(cx + ox + 4, headY - 4);
+        ctx.lineTo(cx + ox - 4, headY + 4);
+        ctx.stroke();
+      });
+    } else {
+      // Piercing glowing cyan eyes
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(cx - 8, headY - 4, 6, 4);
+      ctx.fillRect(cx + 2, headY - 4, 6, 4);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - 7, headY - 3, 4, 2);
+      ctx.fillRect(cx + 3, headY - 3, 4, 2);
+
+      // Glowing pupil
+      ctx.fillStyle = '#00f0ff';
+      ctx.fillRect(cx - 5, headY - 3, 2, 2);
+      ctx.fillRect(cx + 5, headY - 3, 2, 2);
+    }
+
+    // Mouth / Smirk
+    if (st.laugh) {
+      // Wide sinister laugh mouth
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(cx, headY + 8, 6, 0, Math.PI);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - 4, headY + 8, 8, 2);
+    } else {
+      // Subtle mocking smirk
+      ctx.strokeStyle = '#082f49';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 4, headY + 8);
+      ctx.quadraticCurveTo(cx + 2, headY + 11, cx + 6, headY + 7);
+      ctx.stroke();
+    }
+
+    // Electrical sparks overlay when stunned
+    if (st.stun) {
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2;
+      const sparks = [
+        [cx - 30, wheelY - 40],
+        [cx + 28, wheelY - 20],
+        [cx - 15, wheelY - 70],
+        [cx + 18, headY - 10],
+      ];
+      sparks.forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + 8, sy - 8);
+        ctx.lineTo(sx + 4, sy - 14);
+        ctx.lineTo(sx + 14, sy - 20);
+        ctx.stroke();
+      });
+    }
+
+    ctx.restore();
+
+    scene.textures.addCanvas(st.key, canvas);
+  });
+
+  // Slipstream wake streak texture
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 14;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createLinearGradient(0, 7, 120, 7);
+      grad.addColorStop(0, 'rgba(6, 182, 212, 0)');
+      grad.addColorStop(0.3, 'rgba(56, 189, 248, 0.8)');
+      grad.addColorStop(0.7, 'rgba(168, 85, 247, 0.9)');
+      grad.addColorStop(1, '#ffffff');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(60, 7, 60, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      scene.textures.addCanvas('boss_slipstream_streak', canvas);
+    }
+  }
 }
 

@@ -33,6 +33,16 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
     return { text: 'VOLTARZ PRO', color: 'bg-rose-500/25 text-rose-300 border-rose-500/50' };
   };
 
+  const getWeatherTag = (weather: string) => {
+    switch (weather) {
+      case 'light-rain':
+        return { text: '🌧️ Дождь', color: 'text-sky-300' };
+      case 'clear':
+      default:
+        return { text: '☀️ Ясно', color: 'text-amber-200' };
+    }
+  };
+
   return (
     <div
       id="level-select-modal"
@@ -64,6 +74,7 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
           {levels.map((lvl) => {
             const isSelected = lvl.id === currentLevel;
             const diff = getDifficultyBadge(lvl.id);
+            const weather = getWeatherTag(lvl.weather);
             return (
               <button
                 key={lvl.id}
@@ -85,6 +96,9 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
                     </span>
                     <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${diff.color}`}>
                       {diff.text}
+                    </span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/60 ${weather.color}`}>
+                      {weather.text}
                     </span>
                   </div>
 

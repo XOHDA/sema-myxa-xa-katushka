@@ -1,3 +1,4 @@
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { GameSettings } from '../types';
 import { getAudioTrack, saveAudioTrack, removeAudioTrack } from './audioStorage';
 
@@ -27,6 +28,7 @@ class SoundManager {
   private turbineNoiseBuffer: AudioBuffer | null = null;
   private isTurbineRunning: boolean = false;
   private turbineStopTimeout: ReturnType<typeof setTimeout> | null = null;
+  private lastBoostHapticTime = 0;
 
   // Music playback: Real Audio Element + Procedural Fallback
   private bgAudio: HTMLAudioElement | null = null;
@@ -179,6 +181,68 @@ class SoundManager {
       }
     } catch {
       // Ignore vibration errors
+    }
+  }
+
+  /**
+   * High-intensity physical haptic feedback at the moment of boost activation:
+   * Combines Capacitor Native Haptics (Heavy Impact + Sustained Vibration),
+   * Web Vibration API accelerating multi-stage torque surge [70, 20, 90, 20, 130, 25, 180]ms,
+   * and Gamepad Actuator Dual-Rumble for physical acceleration punch.
+   */
+  public triggerBoostHaptic(isSuper: boolean = false) {
+    if (!this.settings.vibration) return;
+
+    const now = Date.now();
+    if (now - this.lastBoostHapticTime < 180) return;
+    this.lastBoostHapticTime = now;
+
+    // 1. Capacitor Native Haptics API (Android & iOS hardware vibration motors)
+    try {
+      Haptics.impact({
+        style: ImpactStyle.Heavy,
+      }).catch(() => {});
+
+      Haptics.vibrate({
+        duration: isSuper ? 350 : 250,
+      }).catch(() => {});
+    } catch {
+      // Ignore if native haptic unavailable
+    }
+
+    // 2. Web Haptics / Vibration API (Physical torque surge ramp: intense punch and accelerating buzz)
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        if (isSuper) {
+          navigator.vibrate([100, 15, 140, 15, 180, 20, 260]);
+        } else {
+          navigator.vibrate([70, 20, 90, 20, 130, 25, 180]);
+        }
+      }
+    } catch {
+      // Ignore vibration errors
+    }
+
+    // 3. Gamepad Haptic Actuator API (Dual-rumble for connected controllers)
+    try {
+      if (typeof navigator !== 'undefined' && 'getGamepads' in navigator) {
+        const gamepads = navigator.getGamepads?.();
+        if (gamepads) {
+          for (let i = 0; i < gamepads.length; i++) {
+            const gp = gamepads[i];
+            if (gp && (gp as any).vibrationActuator?.playEffect) {
+              (gp as any).vibrationActuator.playEffect('dual-rumble', {
+                startDelay: 0,
+                duration: isSuper ? 350 : 250,
+                weakMagnitude: isSuper ? 1.0 : 0.85,
+                strongMagnitude: 1.0,
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore gamepad haptics errors
     }
   }
 
@@ -681,8 +745,8 @@ class SoundManager {
     }
   }
 
-  public playBoost() {
-    this.vibrate(35);
+  public playBoost(isSuper: boolean = false) {
+    this.triggerBoostHaptic(isSuper);
     if (!this.settings.sound) return;
     this.init();
     if (!this.ctx) return;
@@ -710,7 +774,7 @@ class SoundManager {
   }
 
   public playSuperBoost() {
-    this.vibrate(100);
+    this.triggerBoostHaptic(true);
     if (!this.settings.sound) return;
     this.init();
     if (!this.ctx) return;
@@ -828,6 +892,50 @@ class SoundManager {
 
       osc.start(t);
       osc.stop(t + 0.26);
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Distant low-frequency rolling thunder rumble for storm weather
+   */
+  public playThunder(volumeFactor: number = 1.0) {
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const bufferSize = Math.floor(this.ctx.sampleRate * 1.6);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      let lastOut = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        data[i] = (lastOut + 0.03 * white) / 1.02; // brown noise generator
+        lastOut = data[i];
+        data[i] *= 3.8;
+      }
+
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(140, t);
+      filter.frequency.linearRampToValueAtTime(70, t + 1.4);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.01, t);
+      gain.gain.linearRampToValueAtTime(0.32 * this.settings.volume * volumeFactor, t + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.55);
+
+      noiseSource.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      noiseSource.start(t);
     } catch {
       // ignore
     }
@@ -1138,6 +1246,213 @@ class SoundManager {
         bOsc.start(st);
         bOsc.stop(st + 0.14);
       });
+    } catch {
+      // ignore
+    }
+  }
+
+  // --- BOSS FANTÔMAS & DUEL AUDIO ---
+  // Boss appearance warning siren
+  public playBossAlert() {
+    this.vibrate([120, 40, 160, 40, 240]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      // 1. Deep sub-bass drop
+      const subOsc = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      subOsc.type = 'sawtooth';
+      subOsc.frequency.setValueAtTime(160, t);
+      subOsc.frequency.exponentialRampToValueAtTime(35, t + 0.65);
+      subGain.gain.setValueAtTime(0.45 * this.settings.volume, t);
+      subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+      subOsc.connect(subGain);
+      subGain.connect(this.ctx.destination);
+      subOsc.start(t);
+      subOsc.stop(t + 0.72);
+
+      // 2. Rising ominous siren sweep
+      const sirenOsc = this.ctx.createOscillator();
+      const sirenGain = this.ctx.createGain();
+      sirenOsc.type = 'triangle';
+      sirenOsc.frequency.setValueAtTime(220, t + 0.08);
+      sirenOsc.frequency.linearRampToValueAtTime(660, t + 0.45);
+      sirenOsc.frequency.linearRampToValueAtTime(440, t + 0.7);
+      sirenGain.gain.setValueAtTime(0.35 * this.settings.volume, t + 0.08);
+      sirenGain.gain.exponentialRampToValueAtTime(0.001, t + 0.72);
+      sirenOsc.connect(sirenGain);
+      sirenGain.connect(this.ctx.destination);
+      sirenOsc.start(t + 0.08);
+      sirenOsc.stop(t + 0.74);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Boss laughing synthesizer staccato
+  public playBossLaugh() {
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const pitches = [240, 220, 200, 180, 160];
+      pitches.forEach((f, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const st = t + idx * 0.11;
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(f, st);
+        osc.frequency.exponentialRampToValueAtTime(f * 0.85, st + 0.09);
+        gain.gain.setValueAtTime(0.25 * this.settings.volume, st);
+        gain.gain.exponentialRampToValueAtTime(0.001, st + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(st);
+        osc.stop(st + 0.11);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  // Boss SV wheel stunned: electrical short-circuit & PWM failure crunch
+  public playBossStun() {
+    this.vibrate([150, 40, 150]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      // Downward frequency zap
+      const zapOsc = this.ctx.createOscillator();
+      const zapGain = this.ctx.createGain();
+      zapOsc.type = 'sawtooth';
+      zapOsc.frequency.setValueAtTime(950, t);
+      zapOsc.frequency.exponentialRampToValueAtTime(60, t + 0.45);
+      zapGain.gain.setValueAtTime(0.42 * this.settings.volume, t);
+      zapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+      zapOsc.connect(zapGain);
+      zapGain.connect(this.ctx.destination);
+      zapOsc.start(t);
+      zapOsc.stop(t + 0.5);
+
+      // Distorted electrical rattle
+      const buzzOsc = this.ctx.createOscillator();
+      const buzzGain = this.ctx.createGain();
+      buzzOsc.type = 'square';
+      buzzOsc.frequency.setValueAtTime(75, t);
+      buzzGain.gain.setValueAtTime(0.3 * this.settings.volume, t);
+      buzzGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      buzzOsc.connect(buzzGain);
+      buzzGain.connect(this.ctx.destination);
+      buzzOsc.start(t);
+      buzzOsc.stop(t + 0.42);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Boss SV Nitro sound
+  public playBossNitro() {
+    this.vibrate([60, 20, 60]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(280, t);
+      osc.frequency.exponentialRampToValueAtTime(650, t + 0.4);
+      gain.gain.setValueAtTime(0.32 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.46);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Slipstream charging harmonic hum (when drafting behind SV)
+  public playSlipstreamCharge(ratio: number) {
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      // Ascending resonant frequency from 350Hz to 880Hz
+      const freq = 350 + Math.min(1, Math.max(0, ratio)) * 530;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.12 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.11);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Slipstream 100% full burst: Sonic whip-crack and mega-boost launch
+  public playSlipstreamBurst() {
+    this.vibrate([100, 20, 180, 20, 280]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      // High whip-crack chirp
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(1400, t);
+      osc.frequency.exponentialRampToValueAtTime(220, t + 0.3);
+      gain.gain.setValueAtTime(0.45 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.34);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Boss speech voice (Ominous, low-pitch robotic villain)
+  public speakBossVoice(text: string) {
+    if (!this.settings.sound) return;
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ru-RU';
+        // Distinctive menacing low pitch and slightly fast, sharp delivery
+        utter.rate = 1.15;
+        utter.pitch = 0.52;
+        utter.volume = Math.min(1, this.settings.volume * 1.5);
+        const maleVoice = this.getMaleRussianVoice();
+        if (maleVoice) {
+          utter.voice = maleVoice;
+        }
+        window.speechSynthesis.speak(utter);
+      }
     } catch {
       // ignore
     }

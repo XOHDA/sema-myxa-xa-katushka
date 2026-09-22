@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { generateGameTextures } from '../textures';
 import { soundManager } from '../../audio/soundManager';
-import { InputState, LevelConfig, PlayerStats } from '../../types';
+import { InputState, LevelConfig, PlayerStats, WeatherType } from '../../types';
 import { RU } from '../../localization/ru';
 
 export class GameScene extends Phaser.Scene {
@@ -33,6 +33,12 @@ export class GameScene extends Phaser.Scene {
   private tricksCount = 0;
   private fallsCount = 0;
   private combo = 1;
+  private comboProgress = 0; // 0 - 100% towards next combo tier
+  private comboTimer = 0; // remaining seconds before decay
+  private readonly comboMaxTimer = 3.2; // decay countdown
+  private activeTrickType: 'jump' | 'grind' | 'balance' | null = null;
+  private grindSparkTimer = 0;
+  private grindScoreTimer = 0;
   private elapsedTime = 0;
 
   private isInvulnerable = false;
@@ -97,15 +103,38 @@ export class GameScene extends Phaser.Scene {
   private tiltbackBeepTimer = 0;
   private tiltbackSpeechTimer = 0;
 
+  // Boost distortion visual FX & Camera Lens Warp
+  private boostDistortionOverlay!: Phaser.GameObjects.Graphics;
+  private boostLensTween: Phaser.Tweens.Tween | null = null;
+  private boostDistortionTween: Phaser.Tweens.Tween | null = null;
+
+  // Jump immediate handling & state
+  private jumpTrajectoryGraphics: Phaser.GameObjects.Graphics | null = null;
+  private isJumpHolding = false;
+  private jumpHoldTimer = 0;
+  private jumpTriggered = false;
+  private jumpBufferTimer = 0;
+
   // Visuals & Sky
   private skyLayer!: Phaser.GameObjects.Rectangle;
   private bgCityLayer!: Phaser.GameObjects.Graphics;
-  private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private finishArch!: Phaser.GameObjects.Image;
   private speechText: Phaser.GameObjects.Text | null = null;
   private speechTimer = 0;
   private activeSpeechString: string | null = null;
   private trickPopupString: string | null = null;
+
+  // Dynamic Weather & Atmospheric Particle Emitters (Clear road visibility, rain-only)
+  private currentWeather: WeatherType = 'clear';
+  private weatherRainEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private weatherSplashEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private weatherAtmosphereOverlay: Phaser.GameObjects.Graphics | null = null;
+  private announcedWeatherTransitions: Set<WeatherType> = new Set();
+
+  // High-Energy Spark Particle System (Falls, Collisions, VOLT Energy)
+  private sparkImpactEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private sparkFrictionEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private sparkVoltEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
 
   constructor(
     levelConfig: LevelConfig,
@@ -115,6 +144,7 @@ export class GameScene extends Phaser.Scene {
   ) {
     super({ key: 'GameScene' });
     this.levelConfig = levelConfig;
+    this.currentWeather = levelConfig.weather || 'clear';
     this.onStatsUpdate = onStatsUpdate;
     this.onGameOver = onGameOver;
     this.onVictory = onVictory;
@@ -124,9 +154,34 @@ export class GameScene extends Phaser.Scene {
     if (this.isGameOver || this.isVictory) {
       this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
       this.isBoosting = false;
+      this.jumpTriggered = false;
+      this.jumpBufferTimer = 0;
       return;
     }
+
+    const jumpJustPressed = input.jump && !this.inputState.jump;
     this.inputState = { ...input };
+
+    if (!input.jump) {
+      this.jumpTriggered = false;
+    }
+
+    // ⚡ INSTANT JUMP TRIGGER: Jump immediately when button is pressed without trajectory delay
+    if (jumpJustPressed) {
+      this.jumpBufferTimer = 0.16; // 160ms jump buffer in case slightly airborne
+      this.jumpTriggered = true;
+      if (this.player?.body) {
+        const onGround = this.player.body.blocked.down || this.player.body.touching.down;
+        if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
+          const body = this.player.body as Phaser.Physics.Arcade.Body;
+          const maxSpeed = this.levelConfig.baseSpeed || 300;
+          const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
+          const jumpImpulse = -630 - speedRatio * 110;
+          this.executeJump(jumpImpulse);
+          this.jumpBufferTimer = 0;
+        }
+      }
+    }
   }
 
   public preload() {
@@ -149,23 +204,8 @@ export class GameScene extends Phaser.Scene {
     this.bgCityLayer = this.add.graphics().setScrollFactor(0.2);
     this.drawCitySkyline(this.bgCityLayer, worldWidth);
 
-    // Weather particle effect for storm levels
-    if (this.levelConfig.theme === 'storm') {
-      this.weatherParticles = this.add.particles(0, 0, 'particle_volt', {
-        x: { min: -100, max: 550 },
-        y: -20,
-        quantity: 3,
-        lifespan: 1200,
-        gravityY: 600,
-        speedX: { min: -150, max: -80 },
-        speedY: { min: 450, max: 650 },
-        scale: { start: 0.4, end: 0.1 },
-        alpha: { start: 0.6, end: 0 },
-        tint: 0x93c5fd,
-      });
-      this.weatherParticles.setScrollFactor(0);
-      this.weatherParticles.setDepth(6);
-    }
+    // Dynamic Weather Emitters & Overlays
+    this.setupWeatherSystem();
 
     // 2. CREATE GROUPS
     this.platforms = this.physics.add.staticGroup();
@@ -279,6 +319,19 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldWidth, 800);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.08, -80, 20);
     this.cameras.main.setZoom(1.0);
+
+    // 7. BOOST SCREEN DISTORTION OVERLAY (Fixed to camera viewport, high depth)
+    this.boostDistortionOverlay = this.add.graphics();
+    this.boostDistortionOverlay.setScrollFactor(0);
+    this.boostDistortionOverlay.setDepth(35);
+
+    // 8. JUMP PREDICTED TRAJECTORY GRAPHICS (World space, between road and player)
+    this.jumpTrajectoryGraphics = this.add.graphics();
+    this.jumpTrajectoryGraphics.setDepth(18);
+
+    // 9. DYNAMIC WEATHER & SPARK SYSTEMS INITIALIZATION
+    this.setupWeatherSystem();
+    this.setupSparkParticleSystem();
 
     // Sound initialization
     soundManager.startMotor();
@@ -1024,6 +1077,9 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // 6.5 DYNAMIC WEATHER & SPEED-REACTIVE ATMOSPHERE
+    this.updateDynamicWeather(delta);
+
     // 7. SÉMA EUC MOVEMENT & CONTROLS
     this.handleMovement(delta);
 
@@ -1105,14 +1161,75 @@ export class GameScene extends Phaser.Scene {
         }
       }
     } else {
-      // On ground: smooth zoom restore
-      if (this.cameras.main.zoom < 1.0) {
+      // On ground: smooth zoom restore (unless boost lens distortion kick is active)
+      if (this.cameras.main.zoom < 1.0 && (!this.boostLensTween || !this.boostLensTween.isPlaying())) {
         this.cameras.main.setZoom(Phaser.Math.Linear(this.cameras.main.zoom, 1.0, 0.1));
       }
     }
 
     // 9. UPDATE LIGHTS & PARTICLES POSITION
     this.updateLightsAndEffects();
+
+    // 9.5 COMBO MULTIPLIER ACCUMULATION & DECAY (Jumps, Grind, Balance)
+    const isAirborneNow = !onGround;
+    // Grind: riding along elevated platforms/rails (Y < 550) or low power-slide crouch at speed
+    const isGrinding = onGround && (this.player.y < 550 || (this.isCrouching && this.speedKmh > 35));
+    // Balance: high-speed carve (> 80 km/h), tiltback on the limit, or sustained boost (> 70 km/h)
+    const isBalancing = onGround && !isGrinding && (this.speedKmh >= 80 || (this.isTiltback && this.speedKmh >= 45) || (this.isBoosting && this.speedKmh >= 70));
+
+    if (!this.isGameOver && !this.isVictory && !this.isCutout) {
+      if (isAirborneNow) {
+        // Continuous air time feeds combo
+        this.addComboProgress((delta / 1000) * 35, 'jump');
+      } else if (isGrinding) {
+        // Grinding feeds combo rapidly + emits sparks & bonus points
+        this.addComboProgress((delta / 1000) * 45, 'grind');
+        this.grindSparkTimer += delta / 1000;
+        if (this.grindSparkTimer >= 0.08) {
+          this.grindSparkTimer = 0;
+          this.trailEmitter?.emitParticleAt(this.player.x, this.player.y + 44, 2);
+        }
+        this.grindScoreTimer += delta / 1000;
+        if (this.grindScoreTimer >= 0.35) {
+          this.grindScoreTimer = 0;
+          const grindPts = 20 * this.combo;
+          this.score += grindPts;
+        }
+      } else if (isBalancing) {
+        // Aggressive balance feeds combo
+        this.addComboProgress((delta / 1000) * 30, 'balance');
+        this.grindScoreTimer += delta / 1000;
+        if (this.grindScoreTimer >= 0.45) {
+          this.grindScoreTimer = 0;
+          const balancePts = 15 * this.combo;
+          this.score += balancePts;
+        }
+      } else {
+        // Idle / coasting passively: combo timer decays!
+        this.activeTrickType = null;
+        if (this.comboTimer > 0) {
+          this.comboTimer -= delta / 1000;
+          if (this.comboTimer <= 0) {
+            if (this.combo > 1) {
+              this.combo--;
+              this.comboProgress = 70;
+              this.comboTimer = 2.2;
+              this.createFloatingText(this.player.x, this.player.y - 40, `КОМБО x${this.combo}`, '#94a3b8');
+            } else {
+              this.combo = 1;
+              this.comboProgress = Math.max(0, this.comboProgress - (delta / 1000) * 25);
+            }
+          }
+        } else {
+          this.comboProgress = Math.max(0, this.comboProgress - (delta / 1000) * 25);
+        }
+      }
+    } else {
+      this.combo = 1;
+      this.comboProgress = 0;
+      this.comboTimer = 0;
+      this.activeTrickType = null;
+    }
 
     // 10. SPEECH TIMER
     if (this.speechTimer > 0) {
@@ -1123,8 +1240,369 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // 11. EMIT STATS UPDATE TO REACT HUD
+    // 11. UPDATE DYNAMIC WEATHER SYSTEM
+    this.updateDynamicWeather(delta);
+
+    // 12. EMIT STATS UPDATE TO REACT HUD
     this.emitStats();
+  }
+
+  private addComboProgress(amount: number, trickType: 'jump' | 'grind' | 'balance' | null) {
+    if (this.isGameOver || this.isVictory || this.isCutout) return;
+
+    if (trickType) {
+      this.activeTrickType = trickType;
+    }
+    this.comboTimer = this.comboMaxTimer; // Reset decay countdown
+    this.comboProgress += amount;
+
+    if (this.comboProgress >= 100) {
+      if (this.combo < 10) {
+        this.comboProgress -= 100;
+        this.combo = Math.min(10, this.combo + 1);
+        soundManager.playTrickSuccess();
+        const comboColor = this.combo >= 8 ? '#38bdf8' : (this.combo >= 5 ? '#f43f5e' : '#f59e0b');
+        this.createFloatingText(this.player.x, this.player.y - 70, `🔥 КОМБО x${this.combo}! 🔥`, comboColor);
+        if (this.combo === 5 || this.combo === 10) {
+          this.triggerSpeech(`КОМБО x${this.combo}!`);
+        }
+      } else {
+        this.comboProgress = 100;
+      }
+    }
+  }
+
+  // ==========================================
+  // DYNAMIC WEATHER & ATMOSPHERIC PARTICLES
+  // ==========================================
+
+  private setupWeatherSystem() {
+    // 1. Rain streaks emitter (depth 21, in front of world)
+    this.weatherRainEmitter = this.add.particles(0, 0, 'weather_raindrop', {
+      x: { min: -150, max: 550 },
+      y: -35,
+      quantity: 3,
+      lifespan: 1100,
+      speedX: { min: -140, max: -80 },
+      speedY: { min: 680, max: 880 },
+      scale: { start: 0.7, end: 0.45 },
+      alpha: { start: 0.8, end: 0.2 },
+      emitting: false,
+    });
+    this.weatherRainEmitter.setScrollFactor(0);
+    this.weatherRainEmitter.setDepth(21);
+
+    // 2. Road surface water splash ripples
+    this.weatherSplashEmitter = this.add.particles(0, 0, 'weather_rain_splash', {
+      x: { min: -40, max: 490 },
+      y: { min: 645, max: 670 },
+      quantity: 1,
+      lifespan: 320,
+      scale: { start: 0.35, end: 0.8 },
+      alpha: { start: 0.7, end: 0 },
+      emitting: false,
+    });
+    this.weatherSplashEmitter.setScrollFactor(0);
+    this.weatherSplashEmitter.setDepth(16);
+
+    // 3. Atmosphere tint overlay (depth 18) - subtle, non-intrusive
+    this.weatherAtmosphereOverlay = this.add.graphics().setScrollFactor(0).setDepth(18);
+
+    // Initialize with level default
+    this.applyWeather(this.currentWeather, false);
+  }
+
+  private applyWeather(weather: WeatherType, isTransition: boolean = true) {
+    const prevWeather = this.currentWeather;
+    this.currentWeather = weather;
+
+    switch (weather) {
+      case 'clear':
+        this.weatherRainEmitter?.stop();
+        this.weatherSplashEmitter?.stop();
+        this.setSkyColor(0x38bdf8, isTransition);
+        this.drawAtmosphereOverlay(null);
+        break;
+
+      case 'light-rain':
+        this.weatherRainEmitter?.setTexture('weather_raindrop');
+        this.weatherRainEmitter?.setParticleTint(0xbae6fd);
+        this.weatherRainEmitter?.setQuantity(3);
+        this.weatherRainEmitter?.start();
+        this.weatherSplashEmitter?.setQuantity(1);
+        this.weatherSplashEmitter?.start();
+        this.setSkyColor(0x334155, isTransition);
+        this.drawAtmosphereOverlay('rain');
+        break;
+    }
+
+    // Atmospheric transition effects and voice cues
+    if (isTransition && prevWeather !== weather) {
+      let bannerText = '';
+      let bannerColor = '#38bdf8';
+      let speechText: string | null = null;
+
+      if (weather === 'light-rain') {
+        bannerText = '🌧️ ПОШЁЛ ЛЁГКИЙ ДОЖДЬ';
+        bannerColor = '#38bdf8';
+        speechText = RU.weatherRainStartSpeech;
+      } else {
+        bannerText = '☀️ РАСПОГОДИЛОСЬ: ЯСНО';
+        bannerColor = '#facc15';
+        speechText = RU.weatherClearSpeech;
+      }
+
+      if (bannerText && this.player) {
+        this.createFloatingText(this.player.x, this.player.y - 75, bannerText, bannerColor);
+      }
+      if (speechText) {
+        this.triggerSpeech(speechText);
+      }
+    }
+  }
+
+  private setSkyColor(targetColor: number, isTransition: boolean) {
+    if (!this.skyLayer) return;
+    if (!isTransition) {
+      this.skyLayer.setFillStyle(targetColor);
+      return;
+    }
+    const currentColor = this.skyLayer.fillColor;
+    const fromR = (currentColor >> 16) & 0xff;
+    const fromG = (currentColor >> 8) & 0xff;
+    const fromB = currentColor & 0xff;
+
+    const toR = (targetColor >> 16) & 0xff;
+    const toG = (targetColor >> 8) & 0xff;
+    const toB = targetColor & 0xff;
+
+    this.tweens.addCounter({
+      from: 0,
+      to: 100,
+      duration: 1600,
+      onUpdate: (tween) => {
+        const val = (tween.getValue() as number) / 100;
+        const r = Math.round(fromR + (toR - fromR) * val);
+        const g = Math.round(fromG + (toG - fromG) * val);
+        const b = Math.round(fromB + (toB - fromB) * val);
+        const col = (r << 16) | (g << 8) | b;
+        this.skyLayer.setFillStyle(col);
+      },
+    });
+  }
+
+  private drawAtmosphereOverlay(type: string | null) {
+    if (!this.weatherAtmosphereOverlay) return;
+    this.weatherAtmosphereOverlay.clear();
+    if (!type) return;
+
+    if (type === 'rain') {
+      this.weatherAtmosphereOverlay.fillStyle(0x0f172a, 0.06);
+      this.weatherAtmosphereOverlay.fillRect(0, 0, 450, 800);
+    }
+  }
+
+  private updateDynamicWeather(_delta: number) {
+    const progress = Phaser.Math.Clamp(this.distance / Math.max(1, this.levelConfig.length), 0, 1);
+    let targetWeather: WeatherType = this.levelConfig.weather;
+
+    // Dynamic weather: completely clear tracks with occasional light rain showers
+    switch (this.levelConfig.id) {
+      case 2:
+        // Occasional light rain shower midway through the rooftop run
+        targetWeather = progress >= 0.35 && progress <= 0.70 ? 'light-rain' : 'clear';
+        break;
+      case 6:
+        // Wet asphalt run with occasional rain, clearing before finish line
+        targetWeather = progress <= 0.85 ? 'light-rain' : 'clear';
+        break;
+      case 11:
+        // Brief rain shower across the bridge, clears up for the finale
+        targetWeather = progress >= 0.40 && progress <= 0.72 ? 'light-rain' : 'clear';
+        break;
+      default:
+        targetWeather = this.levelConfig.weather;
+        break;
+    }
+
+    if (targetWeather !== this.currentWeather) {
+      this.applyWeather(targetWeather, true);
+    }
+
+    // Speed-reactive particle physics: slant rain into the wind as player accelerates
+    if (this.weatherRainEmitter && this.weatherRainEmitter.emitting) {
+      const vx = this.player.body?.velocity.x || 0;
+      const slantX = Phaser.Math.Clamp(-120 - Math.abs(vx) * 0.35, -550, -80);
+      const speedY = Phaser.Math.Clamp(750 + Math.abs(vx) * 0.25, 650, 1100);
+      this.weatherRainEmitter.setParticleSpeed(slantX, speedY);
+    }
+  }
+
+  // ==========================================
+  // HIGH-ENERGY SPARK PARTICLE SYSTEM
+  // ==========================================
+
+  private setupSparkParticleSystem() {
+    // 1. Explosive radial impact sparks (for collisions with obstacles, drones, cars)
+    this.sparkImpactEmitter = this.add.particles(0, 0, 'spark_point_orange', {
+      speed: { min: 160, max: 490 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1.3, end: 0.1 },
+      alpha: { start: 1, end: 0 },
+      lifespan: { min: 220, max: 480 },
+      gravityY: 520,
+      blendMode: Phaser.BlendModes.ADD,
+      emitting: false,
+    });
+    this.sparkImpactEmitter.setDepth(24);
+
+    // 2. High-speed grinding friction sparks (for falls, wipes, pedal scrapes on asphalt)
+    this.sparkFrictionEmitter = this.add.particles(0, 0, 'spark_streak', {
+      speed: { min: 220, max: 620 },
+      angle: { min: 185, max: 245 },
+      scale: { start: 1.4, end: 0.1 },
+      alpha: { start: 1, end: 0 },
+      lifespan: { min: 300, max: 650 },
+      gravityY: 560,
+      blendMode: Phaser.BlendModes.ADD,
+      emitting: false,
+    });
+    this.sparkFrictionEmitter.setDepth(24);
+
+    // 3. High-Voltage VOLT Energy Discharge Sparks (for collecting energy, batteries, stations)
+    this.sparkVoltEmitter = this.add.particles(0, 0, 'spark_point_gold', {
+      speed: { min: 120, max: 420 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1.5, end: 0.1 },
+      alpha: { start: 1, end: 0 },
+      lifespan: { min: 380, max: 720 },
+      gravityY: -70, // electric plasma drifts upward
+      blendMode: Phaser.BlendModes.ADD,
+      emitting: false,
+    });
+    this.sparkVoltEmitter.setDepth(25);
+  }
+
+  /**
+   * Spawns radiant sparks and shockwaves when colliding with obstacles, cars, drones, or projectiles
+   */
+  public emitCollisionSparks(x: number, y: number, colorPreset: 'orange' | 'gold' | 'cyan' | 'mixed' = 'mixed') {
+    if (!this.sparkImpactEmitter) return;
+
+    // Pick spark texture
+    const texture =
+      colorPreset === 'cyan'
+        ? 'spark_point_cyan'
+        : colorPreset === 'gold'
+        ? 'spark_point_gold'
+        : colorPreset === 'orange'
+        ? 'spark_point_orange'
+        : Phaser.Math.RND.pick(['spark_point_gold', 'spark_point_orange', 'spark_point_white']);
+
+    this.sparkImpactEmitter.setTexture(texture);
+    this.sparkImpactEmitter.explode(30, x, y);
+
+    // Also emit flying friction streaks
+    if (this.sparkFrictionEmitter) {
+      this.sparkFrictionEmitter.explode(12, x, y);
+    }
+
+    // Expanding shockwave ring at point of impact
+    const ring = this.add.image(x, y, 'spark_ring');
+    ring.setDepth(23);
+    ring.setScale(0.3);
+    ring.setAlpha(0.9);
+    this.tweens.add({
+      targets: ring,
+      scale: 2.2,
+      alpha: 0,
+      duration: 280,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  /**
+   * Spawns intense cascading friction sparks when falling, cutting out, or wiping out along the road
+   */
+  public emitFallSparks(x: number, y: number, vx: number = 0) {
+    if (!this.sparkFrictionEmitter || !this.sparkImpactEmitter) return;
+
+    // Spray asphalt grinding sparks
+    this.sparkFrictionEmitter.setTexture('spark_streak');
+    this.sparkFrictionEmitter.explode(45, x, y);
+
+    // Hot incandescent metal chunks
+    this.sparkImpactEmitter.setTexture('spark_point_orange');
+    this.sparkImpactEmitter.explode(28, x, y);
+
+    // Shockwave ring
+    const ring = this.add.image(x, y, 'spark_ring');
+    ring.setDepth(23);
+    ring.setTint(0xf97316);
+    ring.setScale(0.4);
+    this.tweens.add({
+      targets: ring,
+      scale: 3.2,
+      alpha: 0,
+      duration: 380,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+
+    // Staggered secondary scrape burst for realistic asphalt sliding simulation
+    const driftX = vx >= 0 ? -30 : 30;
+    this.time.delayedCall(120, () => {
+      if (this.sparkFrictionEmitter) {
+        this.sparkFrictionEmitter.explode(25, x + driftX, y);
+      }
+    });
+  }
+
+  /**
+   * Spawns brilliant electrical spark arcs and golden starbursts when collecting VOLT energy
+   */
+  public emitVoltEnergySparks(x: number, y: number, isMega: boolean = false) {
+    if (!this.sparkVoltEmitter) return;
+
+    const count = isMega ? 50 : 24;
+
+    // Golden high-voltage spark explosion
+    this.sparkVoltEmitter.setTexture('spark_point_gold');
+    this.sparkVoltEmitter.explode(count, x, y);
+
+    // Cyan plasma electric arc sparks for high-energy burst
+    if (isMega && this.sparkImpactEmitter) {
+      this.sparkImpactEmitter.setTexture('spark_point_cyan');
+      this.sparkImpactEmitter.explode(28, x, y);
+    }
+
+    // White core flash
+    const flash = this.add.image(x, y, 'spark_point_white');
+    flash.setDepth(26);
+    flash.setScale(isMega ? 3.5 : 1.8);
+    this.tweens.add({
+      targets: flash,
+      scale: isMega ? 5.2 : 2.6,
+      alpha: 0,
+      duration: isMega ? 320 : 180,
+      ease: 'Quad.easeOut',
+      onComplete: () => flash.destroy(),
+    });
+
+    // Expanding golden energy shockwave ring
+    const ring = this.add.image(x, y, 'spark_ring');
+    ring.setDepth(25);
+    ring.setTint(isMega ? 0x38bdf8 : 0xfacc15);
+    ring.setScale(0.3);
+    this.tweens.add({
+      targets: ring,
+      scale: isMega ? 4.0 : 2.2,
+      alpha: 0,
+      duration: isMega ? 420 : 260,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
   }
 
   private emitStats() {
@@ -1139,6 +1617,10 @@ export class GameScene extends Phaser.Scene {
       fallsCount: this.fallsCount,
       elapsedTime: Math.floor(this.elapsedTime),
       combo: this.combo,
+      comboProgress: Math.min(100, Math.max(0, Math.round(this.comboProgress))),
+      comboTimer: Math.max(0, Math.round(this.comboTimer * 10) / 10),
+      comboMaxTimer: this.comboMaxTimer,
+      activeTrickType: this.activeTrickType,
       speedKmh: this.speedKmh,
       maxSpeedKmh: this.maxSpeedKmh,
       avgSpeedKmh: this.avgSpeedKmh,
@@ -1152,6 +1634,7 @@ export class GameScene extends Phaser.Scene {
       isSuperBoost: this.isSuperBoost,
       isWobbling: this.isWobbling,
       isTiltback: this.isTiltback,
+      weather: this.currentWeather,
       activeSpeech: this.activeSpeechString,
       trickPopup: this.trickPopupString,
       currentLevel: this.levelConfig.id,
@@ -1199,8 +1682,9 @@ export class GameScene extends Phaser.Scene {
       } else {
         if (!this.isBoosting) {
           this.isBoosting = true;
-          soundManager.playBoost();
+          soundManager.playBoost(this.isSuperBoost);
           this.triggerSpeech(RU.phrases[1]); // «ПОШЁЛ БУСТ!»
+          this.triggerBoostDistortion(this.isSuperBoost);
         }
 
         // Accumulate continuous boost hold duration
@@ -1325,13 +1809,31 @@ export class GameScene extends Phaser.Scene {
       body.setVelocityY(Math.max(body.velocity.y, 480)); // fast descent
     }
 
-    // Jump
-    if (this.inputState.jump && onGround) {
-      const speedRatio = Math.abs(body.velocity.x) / maxSpeed;
-      const jumpImpulse = -580 - speedRatio * 110;
-      body.setVelocityY(jumpImpulse);
-      soundManager.playJump();
-      this.player.setTexture('sema_air');
+    // ⚡ INSTANT JUMP EXECUTION: Leaps immediately when jump button is pressed (zero delay, no trajectory charging lag)
+    if (this.inputState.jump) {
+      if (!this.jumpTriggered) {
+        this.jumpTriggered = true;
+        this.jumpBufferTimer = 0.16; // 160ms jump buffer in case slightly airborne
+        if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
+          const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
+          const jumpImpulse = -630 - speedRatio * 110;
+          this.executeJump(jumpImpulse);
+          this.jumpBufferTimer = 0;
+        }
+      }
+    } else {
+      this.jumpTriggered = false;
+    }
+
+    // Process buffered jump if player touched ground while buffer was active
+    if (this.jumpBufferTimer > 0) {
+      this.jumpBufferTimer -= delta / 1000;
+      if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
+        const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
+        const jumpImpulse = -630 - speedRatio * 110;
+        this.executeJump(jumpImpulse);
+        this.jumpBufferTimer = 0;
+      }
     }
 
     // Dynamic motor sound pitch tracking - active ONLY while wheel is rolling!
@@ -1384,13 +1886,19 @@ export class GameScene extends Phaser.Scene {
 
       if (trickName) {
         this.tricksCount++;
-        this.combo = Math.min(5, this.combo + 1);
+        let progressReward = 35;
+        if (trickName === RU.trickMiniFlip) progressReward = 60;
+        else if (trickName === RU.trickHighDrop) progressReward = 50;
+        else if (trickName === RU.trickLongJump) progressReward = 45;
+        this.addComboProgress(progressReward, 'jump');
+
         const earned = trickScore * this.combo;
         this.score += earned;
         this.triggerTrick(trickName, this.combo);
         soundManager.playTrickSuccess();
       } else {
-        this.combo = 1;
+        // Safe standard landing keeps current combo active, adding minor progress
+        this.addComboProgress(10, 'jump');
       }
 
       // Reset angle to upright
@@ -1401,9 +1909,13 @@ export class GameScene extends Phaser.Scene {
         ease: 'Cubic.easeOut',
       });
     } else {
-      // Clumsy landing: stumble
+      // Clumsy landing: stumble breaks combo, pedal scrapes ground with sparks
       this.combo = 1;
+      this.comboProgress = 0;
+      this.comboTimer = 0;
+      this.activeTrickType = null;
       this.triggerSpeech('НУ ПОЧТИ...');
+      this.emitCollisionSparks(this.player.x, this.player.y + 40, 'orange');
       this.tweens.add({
         targets: this.player,
         angle: 0,
@@ -1418,8 +1930,10 @@ export class GameScene extends Phaser.Scene {
     if (body.velocity.x > 80 && body.velocity.y >= -50) {
       body.setVelocityY(-650);
       body.setVelocityX(body.velocity.x * 1.25);
+      this.addComboProgress(30, 'jump');
       soundManager.playJump();
       this.triggerSpeech(RU.rampJump); // «ПОЛЕТЕЛ!»
+      this.createFloatingText(this.player.x, this.player.y - 60, '🚀 ТРАМПЛИН! +30', '#38bdf8');
     }
   }
 
@@ -1489,6 +2003,7 @@ export class GameScene extends Phaser.Scene {
     soundManager.playSuperBoost();
     this.triggerSpeech(RU.maxBoost);
     this.createFloatingText(this.player.x, this.player.y - 50, '⚡ МАКСИМАЛЬНЫЙ БУСТ! ⚡', '#fef08a');
+    this.triggerBoostDistortion(true);
   }
 
   private handleActivateCheckpoint(playerObj: any, cpObj: any) {
@@ -1571,7 +2086,7 @@ export class GameScene extends Phaser.Scene {
       if (this.shields < this.maxShields) {
         this.shields++;
       }
-      this.combo = Math.min(10, this.combo + 1);
+      this.addComboProgress(45, 'jump');
       const bonusPoints = 350 * this.combo;
       this.score += bonusPoints;
       this.battery = Math.min(100, this.battery + 15);
@@ -1652,6 +2167,9 @@ export class GameScene extends Phaser.Scene {
 
     // Reset combo on hit
     this.combo = 1;
+    this.comboProgress = 0;
+    this.comboTimer = 0;
+    this.activeTrickType = null;
 
     // Damage / Game Over check
     if (this.shields <= 0) {
@@ -1707,7 +2225,7 @@ export class GameScene extends Phaser.Scene {
       if (this.shields < this.maxShields) {
         this.shields++;
       }
-      this.combo = Math.min(10, this.combo + 1);
+      this.addComboProgress(50, 'jump');
       const bonusPoints = 500 * this.combo;
       this.score += bonusPoints;
       this.battery = Math.min(100, this.battery + 20);
@@ -1832,6 +2350,9 @@ export class GameScene extends Phaser.Scene {
 
     // Reset combo
     this.combo = 1;
+    this.comboProgress = 0;
+    this.comboTimer = 0;
+    this.activeTrickType = null;
 
     // Damage / Game Over check
     if (this.shields <= 0) {
@@ -1971,6 +2492,10 @@ export class GameScene extends Phaser.Scene {
 
     soundManager.playCutout();
     soundManager.stopTurbine();
+    this.clearBoostDistortion();
+    this.clearJumpTrajectory();
+    this.isJumpHolding = false;
+    this.jumpHoldTimer = 0;
 
     if (reason === 'boost') {
       this.createFloatingText(this.player.x, this.player.y - 85, '💥 ПРОДАВ! БУСТ > 3 СЕК! 💥', '#ef4444');
@@ -1991,8 +2516,17 @@ export class GameScene extends Phaser.Scene {
     this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
     this.isBoosting = false;
     this.boostHoldDuration = 0;
+    this.isJumpHolding = false;
+    this.jumpHoldTimer = 0;
+    this.combo = 1;
+    this.comboProgress = 0;
+    this.comboTimer = 0;
+    this.activeTrickType = null;
     this.fallsCount++;
     soundManager.stopMotor();
+    soundManager.stopTurbine();
+    this.clearBoostDistortion();
+    this.clearJumpTrajectory();
     soundManager.playHit();
 
     // Clean up any lingering timers
@@ -2069,7 +2603,18 @@ export class GameScene extends Phaser.Scene {
     this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
     this.isBoosting = false;
     this.boostHoldDuration = 0;
+    this.isJumpHolding = false;
+    this.jumpHoldTimer = 0;
+    this.combo = 1;
+    this.comboProgress = 0;
+    this.comboTimer = 0;
+    this.activeTrickType = null;
     soundManager.stopTurbine();
+    this.clearBoostDistortion();
+    this.clearJumpTrajectory();
+    if (this.cameras?.main) {
+      this.cameras.main.setZoom(1.0);
+    }
     if (this.poopProjectiles) {
       this.poopProjectiles.clear(true, true);
     }
@@ -2138,6 +2683,9 @@ export class GameScene extends Phaser.Scene {
 
     this.isVictory = true;
     this.isInvulnerable = true;
+    this.isJumpHolding = false;
+    this.jumpHoldTimer = 0;
+    this.clearJumpTrajectory();
     soundManager.stopMotor();
 
     // Clean up any lingering timers
@@ -2205,6 +2753,299 @@ export class GameScene extends Phaser.Scene {
       this.trailEmitter.setPosition(bodyX + (isFlip ? 22 : -22), bodyY + 50);
     } else {
       this.trailEmitter.stop();
+    }
+  }
+
+  /**
+   * High-velocity short-lived screen distortion effect triggered on abrupt boost start:
+   * 1. Snappy screen shake (physical electric motor torque jolt)
+   * 2. Camera lens FOV kick (wide-angle warp with elastic snapback)
+   * 3. Optical lens distortion overlay (radial speed warp streaks & chromatic aberration fringe)
+   */
+  private triggerBoostDistortion(isSuper: boolean = false) {
+    if (!this.cameras?.main || this.isGameOver || this.isVictory || this.isCutout) return;
+
+    // 1. PHYSICAL IMPULSE SCREEN SHAKE
+    const shakeDuration = isSuper ? 180 : 140;
+    const shakeIntensity = isSuper ? 0.016 : 0.010;
+    this.cameras.main.shake(shakeDuration, shakeIntensity);
+
+    // 2. LENS DISTORTION / FOV KICK (Optical wide-angle snap)
+    if (this.boostLensTween) {
+      this.boostLensTween.stop();
+      this.boostLensTween = null;
+    }
+    const kickZoom = isSuper ? 0.92 : 0.945;
+    this.cameras.main.setZoom(kickZoom);
+    this.boostLensTween = this.tweens.add({
+      targets: this.cameras.main,
+      zoom: 1.0,
+      duration: isSuper ? 300 : 230,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        this.boostLensTween = null;
+      },
+    });
+
+    // 3. OPTICAL SCREEN DISTORTION OVERLAY (Radial speed warp & chromatic aberration fringe)
+    if (!this.boostDistortionOverlay) return;
+
+    if (this.boostDistortionTween) {
+      this.boostDistortionTween.stop();
+      this.boostDistortionTween = null;
+    }
+
+    const g = this.boostDistortionOverlay;
+    g.clear();
+    g.setAlpha(1.0);
+
+    // Anchor the radial distortion epicenter to the player's on-screen coordinate
+    const screenX = Phaser.Math.Clamp(this.player.x - this.cameras.main.scrollX, 80, 370);
+    const screenY = Phaser.Math.Clamp(this.player.y - this.cameras.main.scrollY, 220, 680);
+
+    const primaryColor = isSuper ? 0xfbbf24 : 0x38bdf8; // Amber/Gold or Sky Cyan
+    const altColor = isSuper ? 0xf43f5e : 0x06b6d4;     // Rose or Bright Cyan
+
+    // A. Chromatic aberration lens border bands (barrel distortion edges)
+    // Left & Right edge distortion fringes
+    g.fillStyle(0x00f0ff, 0.35); // Cyan fringe
+    g.fillRect(0, 0, 14, 800);
+    g.fillRect(436, 0, 14, 800);
+
+    g.fillStyle(0xff0055, 0.28); // Magenta offset fringe
+    g.fillRect(10, 0, 8, 800);
+    g.fillRect(432, 0, 8, 800);
+
+    // Top & Bottom lens distortion fringes
+    g.fillStyle(0x00f0ff, 0.25);
+    g.fillRect(0, 0, 450, 12);
+    g.fillRect(0, 788, 450, 12);
+
+    g.fillStyle(0xff0055, 0.20);
+    g.fillRect(0, 8, 450, 6);
+    g.fillRect(0, 786, 450, 6);
+
+    // B. Expanding shockwave ring at point of acceleration
+    g.lineStyle(3, primaryColor, 0.85);
+    g.strokeCircle(screenX, screenY, 45);
+    g.lineStyle(1.5, 0xffffff, 0.9);
+    g.strokeCircle(screenX, screenY, 75);
+    g.lineStyle(2, altColor, 0.5);
+    g.strokeCircle(screenX, screenY, 110);
+
+    // C. Radial speed warp streaks radiating outward across the viewport
+    const numStreaks = isSuper ? 36 : 28;
+    for (let i = 0; i < numStreaks; i++) {
+      const angle = (i / numStreaks) * Math.PI * 2 + (Math.random() * 0.15 - 0.075);
+      const innerR = 50 + Math.random() * 40;
+      const outerR = innerR + 90 + Math.random() * 220;
+
+      const x1 = screenX + Math.cos(angle) * innerR;
+      const y1 = screenY + Math.sin(angle) * innerR;
+      const x2 = screenX + Math.cos(angle) * outerR;
+      const y2 = screenY + Math.sin(angle) * outerR;
+
+      const isWhite = i % 3 === 0;
+      const streakColor = isWhite ? 0xffffff : (i % 2 === 0 ? primaryColor : altColor);
+      const streakAlpha = isWhite ? 0.85 : 0.6;
+      const streakWidth = isWhite ? 2.5 : (i % 2 === 0 ? 2.0 : 1.2);
+
+      g.lineStyle(streakWidth, streakColor, streakAlpha);
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.stroke();
+    }
+
+    // D. Smooth decay and fade out of the distortion effect
+    this.boostDistortionTween = this.tweens.add({
+      targets: g,
+      alpha: 0,
+      duration: isSuper ? 300 : 230,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        g.clear();
+        this.boostDistortionTween = null;
+      },
+    });
+  }
+
+  private clearBoostDistortion() {
+    if (this.boostLensTween) {
+      this.boostLensTween.stop();
+      this.boostLensTween = null;
+    }
+    if (this.boostDistortionTween) {
+      this.boostDistortionTween.stop();
+      this.boostDistortionTween = null;
+    }
+    if (this.boostDistortionOverlay) {
+      this.boostDistortionOverlay.clear();
+    }
+  }
+
+  private executeJump(jumpImpulse: number) {
+    if (!this.player?.body || this.isGameOver || this.isVictory || this.isCutout) return;
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    body.setVelocityY(jumpImpulse);
+    soundManager.playJump();
+    this.player.setTexture('sema_air');
+    this.isJumpHolding = false;
+    this.jumpHoldTimer = 0;
+    this.clearJumpTrajectory();
+  }
+
+  /**
+   * Renders a semi-transparent dotted/dashed parabolic arc predicting the player's
+   * jump trajectory while holding the jump button on the ground prior to liftoff.
+   */
+  private drawJumpTrajectory(jumpImpulse: number) {
+    if (!this.jumpTrajectoryGraphics || !this.player?.body) return;
+
+    const g = this.jumpTrajectoryGraphics;
+    g.clear();
+
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const isFacingLeft = this.player.flipX;
+    const startX = this.player.x + (isFacingLeft ? -8 : 8);
+    const startY = this.player.y + 44; // Wheel ground contact point
+
+    let simX = startX;
+    let simY = startY;
+    let simVx = body.velocity.x;
+
+    // If player is stationary or moving very slowly, cast the arc in the direction they are facing
+    if (Math.abs(simVx) < 40) {
+      simVx = (isFacingLeft ? -1 : 1) * 160;
+    }
+
+    let simVy = jumpImpulse;
+    const gravityY = this.levelConfig.gravity;
+    const airDrag = 250;
+    const dt = 0.022; // ~22ms simulation step
+    const maxTicks = 60;
+    const defaultGroundY = 650;
+
+    const points: { x: number; y: number }[] = [{ x: simX, y: simY }];
+    const elevatedSprites = this.elevatedPlatforms?.getChildren() as Phaser.Physics.Arcade.Sprite[] | undefined;
+
+    for (let i = 0; i < maxTicks; i++) {
+      // Aerodynamic air drag on X axis
+      if (simVx > 0) {
+        simVx = Math.max(0, simVx - airDrag * dt);
+      } else if (simVx < 0) {
+        simVx = Math.min(0, simVx + airDrag * dt);
+      }
+      simVy += gravityY * dt;
+      simX += simVx * dt;
+      simY += simVy * dt;
+
+      // Detect landing on elevated platform while descending
+      let hitPlatform = false;
+      if (simVy > 0 && elevatedSprites && elevatedSprites.length > 0) {
+        for (const ep of elevatedSprites) {
+          const halfWidth = ep.displayWidth / 2 + 8;
+          if (Math.abs(simX - ep.x) <= halfWidth) {
+            const topY = ep.y - ep.displayHeight / 2;
+            if (simY >= topY && simY <= topY + 28) {
+              points.push({ x: simX, y: topY });
+              hitPlatform = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (hitPlatform) break;
+
+      // Ground plane contact
+      if (simY >= defaultGroundY) {
+        points.push({ x: simX, y: defaultGroundY });
+        break;
+      }
+
+      points.push({ x: simX, y: simY });
+    }
+
+    if (points.length < 2) return;
+
+    // 1. Outer subtle neon emerald glow underlayer
+    g.lineStyle(4, 0x10b981, 0.22);
+    this.drawDashedPolyline(g, points, 9, 7);
+
+    // 2. Main crisp semi-transparent dotted/dashed line
+    g.lineStyle(2, 0xa7f3d0, 0.65);
+    this.drawDashedPolyline(g, points, 9, 7);
+
+    // 3. Glowing dots along the arc
+    for (let i = 2; i < points.length; i += 3) {
+      const pt = points[i];
+      g.fillStyle(0x34d399, 0.60);
+      g.fillCircle(pt.x, pt.y, 2.5);
+      g.fillStyle(0xffffff, 0.85);
+      g.fillCircle(pt.x, pt.y, 1.2);
+    }
+
+    // 4. Landing reticle / touchdown indicator
+    const lastPoint = points[points.length - 1];
+    // Outer ring
+    g.lineStyle(2, 0x34d399, 0.75);
+    g.strokeCircle(lastPoint.x, lastPoint.y, 13);
+    // Inner pulse dot
+    g.fillStyle(0xa7f3d0, 0.85);
+    g.fillCircle(lastPoint.x, lastPoint.y, 3.5);
+    // Horizontal crosshair
+    g.lineStyle(1.5, 0x34d399, 0.6);
+    g.lineBetween(lastPoint.x - 16, lastPoint.y, lastPoint.x + 16, lastPoint.y);
+    g.lineBetween(lastPoint.x, lastPoint.y - 6, lastPoint.x, lastPoint.y + 6);
+  }
+
+  private drawDashedPolyline(
+    g: Phaser.GameObjects.Graphics,
+    points: { x: number; y: number }[],
+    dashLen: number,
+    gapLen: number
+  ) {
+    let isDrawing = true;
+    let remainingInState = dashLen;
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const segDx = p2.x - p1.x;
+      const segDy = p2.y - p1.y;
+      const segLen = Math.hypot(segDx, segDy);
+      if (segLen === 0) continue;
+
+      const dirX = segDx / segLen;
+      const dirY = segDy / segLen;
+      let traveled = 0;
+
+      while (traveled < segLen) {
+        const step = Math.min(remainingInState, segLen - traveled);
+        const startX = p1.x + dirX * traveled;
+        const startY = p1.y + dirY * traveled;
+        const endX = startX + dirX * step;
+        const endY = startY + dirY * step;
+
+        if (isDrawing) {
+          g.lineBetween(startX, startY, endX, endY);
+        }
+
+        traveled += step;
+        remainingInState -= step;
+
+        if (remainingInState <= 0.001) {
+          isDrawing = !isDrawing;
+          remainingInState = isDrawing ? dashLen : gapLen;
+        }
+      }
+    }
+  }
+
+  private clearJumpTrajectory() {
+    if (this.jumpTrajectoryGraphics) {
+      this.jumpTrajectoryGraphics.clear();
     }
   }
 

@@ -25,6 +25,10 @@ const INITIAL_STATS: PlayerStats = {
   fallsCount: 0,
   elapsedTime: 0,
   combo: 1,
+  comboProgress: 0,
+  comboTimer: 0,
+  comboMaxTimer: 3.2,
+  activeTrickType: null,
   speedKmh: 0,
   maxSpeedKmh: 0,
   avgSpeedKmh: 0,
@@ -33,15 +37,23 @@ const INITIAL_STATS: PlayerStats = {
   boostHoldDuration: 0,
   currentLevel: 1,
   levelName: '1. НАБЕРЕЖНАЯ И ПАРК',
-  levelLength: 5600,
+  levelLength: 16800,
   isCutout: false,
   isOverspeed: false,
   isBoosting: false,
   isSuperBoost: false,
   isWobbling: false,
   isTiltback: false,
+  weather: 'clear',
   activeSpeech: null,
   trickPopup: null,
+  bossDuelActive: false,
+  bossName: 'ФАНТОМАС (SV)',
+  bossDistanceLead: 0,
+  bossStunned: false,
+  bossSlipstreamActive: false,
+  bossSlipstreamCharge: 0,
+  isBossLoss: false,
 };
 
 const INITIAL_INPUT_STATE: InputState = {
@@ -249,6 +261,7 @@ export default function App() {
           <GameOverModal
             isCutout={stats.isCutout}
             cutoutReason={stats.cutoutReason}
+            isBossLoss={stats.isBossLoss}
             onRetry={handleRetryFromCheckpoint}
             onRestartLevel={handleRestart}
             onToMenu={() => setGameState('MENU')}

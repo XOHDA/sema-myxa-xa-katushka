@@ -142,11 +142,50 @@ export const RU = {
   chargeStationUsed: '⚡ ПОЛНАЯ ЗАПРАВКА 100%! ⚡',
   rampJump: 'ПОЛЕТЕЛ!',
 
+  // Погода и атмосфера
+  weather: 'ПОГОДА',
+  weatherClear: 'Ясно',
+  weatherLightRain: 'Лёгкий дождь',
+  weatherFog: 'Густой туман',
+  weatherStorm: 'Гроза и ливень',
+  weatherSunsetHaze: 'Закатная дымка',
+  weatherCyberDrizzle: 'Неоновая морось',
+  weatherIndustrialSmog: 'Пром-смог',
+  weatherRainStartSpeech: 'О, дождик закапал!',
+  weatherStormSpeech: 'Гроза надвигается! Держи руль!',
+  weatherClearSpeech: 'Распогодилось! Газ в пол!',
+  weatherSunsetSpeech: 'Красивый закат! Сёма кайфует!',
+  sparkEnergyBurst: 'ЗАРЯД ЭНЕРГИИ!',
+  sparkSuperVolt: 'СВЕРХМОЩНЫЙ ВОЛЬТ!',
+
   // Трюки
   trickMiniFlip: 'МИНИ-ФЛИП',
   trickLongJump: 'ДАЛЬНИЙ ПРЫЖОК',
   trickHighDrop: 'ВЫСОКИЙ ДРОП',
   trickPerfectLanding: 'ИДЕАЛЬНАЯ ПОСАДКА',
+
+  // Босс: Моноколёсник Фантомас на моноколесе SV
+  bossDuelTitle: 'БОСС-ДУЭЛЬ: ФАНТОМАС НА МОНОКОЛЕСЕ SV!',
+  bossDuelSub: 'Доедь до финиша раньше Фантомаса! Опережай его по скорости!',
+  bossFantomasName: 'ФАНТОМАС (SV)',
+  bossSemaName: 'СЁМА',
+  bossTacticTip: '💡 АЛГОРИТМ: Держись в слипстриме за SV для мега-буста или прыгай сверху для стана!',
+  bossSlipstreamActive: 'СЛИПСТРИМ',
+  bossSlipstreamFull: '⚡ СЛИПСТРИМ 100%! МЕГА-УСКОРЕНИЕ!',
+  bossStunnedAlert: '💥 ПЕРЕГРЕВ SV! БОСС ЗАСТАНЕН!',
+  bossNitroAlert: '🔥 ФАНТОМАС ВКЛЮЧИЛ SV-НИТРО!',
+  bossAheadAlert: '⚠ ФАНТОМАС ВПЕРЕДИ!',
+  bossPlayerAheadAlert: '⚡ СЁМА ВПЕРЕДИ!',
+  bossLossTitle: 'ФАНТОМАС ПРИШЁЛ ПЕРВЫМ!',
+  bossLossDesc: 'Моноколесо SV опередило тебя на финише! Держись в аэродинамическом слипстриме за SV для получения мега-буста или сбивай Фантомаса прыжком сверху!',
+  bossLossRetry: 'РЕВАНШ (ДУЭЛЬ С БОССОМ)',
+  bossDefeatedBonus: '👑 БОСС ФАНТОМАС ПОВЕРЖЕН! +2500 ОЧКОВ!',
+  bossShoutStart: 'Ха-ха, Сёма! Посмотрим, чьё колесо быстрее! Мой SV непобедим!',
+  bossShoutNitro: 'СМОТРИ НА МОЙ SV! НИТРО-УСКОРЕНИЕ!',
+  bossShoutStun: 'АЙ! МОЙ ШИМ! ПЕДАЛИ ЗАДРАЛО!',
+  bossShoutCone: 'ЧЁРТ! КТО БРОСИЛ КОНУС?!',
+  bossShoutLoss: 'НЕВЕРОЯТНО! СЁМА, ТЫ БЫСТРЕЕ МОЕГО SV! Я ЕЩЁ ВЕРНУСЬ!',
+  bossShoutWin: 'ХА-ХА-ХА! МОЙ SV — КОРОЛЬ ДОРОГИ!',
 
   // Реплики Сёмы
   phrases: [
