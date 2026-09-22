@@ -14,11 +14,11 @@ export function generateGameTextures(scene: Phaser.Scene) {
   // Scaled & optimized to fit all tunnels, overhead bridges, and obstacles
   createSemaTexture(scene, 'sema_normal', { lean: 0, air: false, glow: '#f59e0b', boost: false });
   createSemaTexture(scene, 'sema_crouch', { lean: 20, air: false, glow: '#f59e0b', boost: false, crouch: true });
-  createSemaTexture(scene, 'sema_lean_fwd', { lean: 12, air: false, glow: '#f59e0b', boost: false });
-  createSemaTexture(scene, 'sema_lean_back', { lean: -12, air: false, glow: '#f59e0b', boost: false });
+  createSemaTexture(scene, 'sema_lean_fwd', { lean: 10, air: false, glow: '#f59e0b', boost: false });
+  createSemaTexture(scene, 'sema_lean_back', { lean: -10, air: false, glow: '#f59e0b', boost: false });
   createSemaTexture(scene, 'sema_air', { lean: 4, air: true, glow: '#f59e0b', boost: false });
-  createSemaTexture(scene, 'sema_boost', { lean: 16, air: false, glow: '#38bdf8', boost: true });
-  createSemaTexture(scene, 'sema_super_boost', { lean: 20, air: false, glow: '#fbbf24', boost: true, super: true });
+  createSemaTexture(scene, 'sema_boost', { lean: 26, air: false, glow: '#38bdf8', boost: true });
+  createSemaTexture(scene, 'sema_super_boost', { lean: 32, air: false, glow: '#fbbf24', boost: true, super: true });
   createSemaTexture(scene, 'sema_tiltback', { lean: -26, air: false, glow: '#ef4444', boost: false, tiltback: true });
   createSemaTexture(scene, 'sema_fall', { lean: -45, air: true, glow: '#ef4444', boost: false, fallen: true });
   createSkeletonSemaTexture(scene, 'sema_skeleton_cyan', '#00ffff', '#38bdf8');
@@ -221,7 +221,9 @@ function createSemaTexture(
   ctx.fill();
 
   // --- SÉMA (CHARACTER BODY) ---
-  const crouchDrop = opts.crouch ? 42 : 0;
+  // When boosting, Sema drops lower to the ground in a deep aerodynamic speed tuck!
+  const boostDrop = opts.boost ? (opts.super ? 26 : 20) : 0;
+  const crouchDrop = opts.crouch ? 42 : boostDrop;
 
   // Legs & Knees on EUC pedals
   if (opts.crouch) {
@@ -240,6 +242,26 @@ function createSemaTexture(
     ctx.beginPath();
     ctx.roundRect(-20, wheelY - 14, 14, 14, 3);
     ctx.roundRect(4, wheelY - 14, 14, 14, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  } else if (opts.boost) {
+    // Bent knees in forward-leaning acceleration speed stance closer to pedals/ground
+    ctx.fillStyle = '#064e3b';
+    ctx.beginPath();
+    ctx.roundRect(-20, wheelY - 22, 15, 32, 4);
+    ctx.fill();
+    ctx.fillStyle = '#047857';
+    ctx.beginPath();
+    ctx.roundRect(3, wheelY - 22, 16, 32, 4);
+    ctx.fill();
+
+    // Low aerodynamic knee pads
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.roundRect(-19, wheelY - 14, 15, 15, 3);
+    ctx.roundRect(4, wheelY - 14, 15, 15, 3);
     ctx.fill();
     ctx.strokeStyle = '#10b981';
     ctx.lineWidth = 1.5;
@@ -298,32 +320,230 @@ function createSemaTexture(
   ctx.fillRect(-32, torsoY + 12, 10, 4);
 
   // Arms & Handle grip / balance pose
-  // Back arm
-  ctx.fillStyle = '#064e3b';
-  ctx.beginPath();
-  ctx.roundRect(-28, torsoY + 12, 12, 32, 6);
-  ctx.fill();
+  // STRICT USER MANDATE: Arms appear forward ONLY when using the BOOST button!
+  const isBoostStance = opts.boost && !opts.tiltback && !opts.fallen;
+  const isTiltbackStance = opts.tiltback;
+  const isFallenStance = opts.fallen;
 
-  // Front arm (reaching slightly forward in stylish riding posture)
-  ctx.fillStyle = '#047857';
-  ctx.beginPath();
-  ctx.roundRect(14, torsoY + 10, 14, 30, 6);
-  ctx.fill();
+  if (isBoostStance) {
+    // 🌟 FORWARD EXTENDED ARMS: ACTIVE ONLY ON BOOST BUTTON! 🌟
+    // In this low-to-the-ground speed lean, both arms shoot forward into the wind
+    let frontShoulderX = 8;
+    let frontShoulderY = torsoY + 10;
+    let frontElbowX = 28;
+    let frontElbowY = torsoY + 12;
+    let frontWristX = 46;
+    let frontWristY = torsoY + 13;
+    let frontHandX = 52;
+    let frontHandY = torsoY + 13;
 
-  // Elbow pads
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath();
-  ctx.roundRect(14, torsoY + 22, 15, 12, 3);
-  ctx.fill();
+    let backShoulderX = -6;
+    let backShoulderY = torsoY + 12;
+    let backElbowX = 16;
+    let backElbowY = torsoY + 14;
+    let backWristX = 36;
+    let backWristY = torsoY + 15;
+    let backHandX = 42;
+    let backHandY = torsoY + 15;
 
-  // Sporty motorcycle gloves
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  ctx.arc(22, torsoY + 42, 7, 0, Math.PI * 2);
-  ctx.arc(-22, torsoY + 42, 6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#10b981';
-  ctx.fillRect(18, torsoY + 40, 8, 3);
+    if (opts.super) {
+      // Super Boost: maximum aerodynamic reach forward closer to the ground
+      frontElbowX = 30; frontElbowY = torsoY + 10;
+      frontWristX = 50; frontWristY = torsoY + 11;
+      frontHandX = 56; frontHandY = torsoY + 11;
+
+      backElbowX = 18; backElbowY = torsoY + 12;
+      backWristX = 40; backWristY = torsoY + 13;
+      backHandX = 46; backHandY = torsoY + 13;
+    }
+
+    // 1. Back Arm (Layered behind/alongside chest)
+    ctx.strokeStyle = '#064e3b';
+    ctx.lineWidth = 11;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(backShoulderX, backShoulderY);
+    ctx.lineTo(backElbowX, backElbowY);
+    ctx.lineTo(backWristX, backWristY);
+    ctx.stroke();
+
+    // Back elbow pad
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(backElbowX, backElbowY, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Back motorcycle glove (reaching forward)
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.ellipse(backHandX, backHandY, 7, 5.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(backHandX - 4, backHandY - 2, 4, 3);
+
+    // 2. Front Arm (Foreground arm reaching strongly forward)
+    ctx.strokeStyle = '#047857';
+    ctx.lineWidth = 13;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(frontShoulderX, frontShoulderY);
+    ctx.lineTo(frontElbowX, frontElbowY);
+    ctx.lineTo(frontWristX, frontWristY);
+    ctx.stroke();
+
+    // Top sleeve highlight / seam
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(frontShoulderX + 2, frontShoulderY - 4);
+    ctx.lineTo(frontElbowX, frontElbowY - 4);
+    ctx.lineTo(frontWristX - 2, frontWristY - 4);
+    ctx.stroke();
+
+    // Front reinforced elbow armor pad
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(frontElbowX, frontElbowY, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Front wrist guard cuff
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(frontWristX, frontWristY, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Front motorcycle glove (fingers and knuckle shell pointing forward)
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.ellipse(frontHandX, frontHandY, 8.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Knuckle guard shell
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.roundRect(frontHandX - 5, frontHandY - 4, 8, 4, 2);
+    ctx.fill();
+
+    // Extended fingers cutting forward into wind
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.ellipse(frontHandX + 4, frontHandY, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Gold grip stripe
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(frontHandX - 3, frontHandY + 2, 5, 2);
+
+    // Speed wind lines trailing from fingertips during boost
+    if (opts.boost) {
+      ctx.save();
+      ctx.strokeStyle = opts.super ? 'rgba(254, 240, 138, 0.85)' : 'rgba(56, 189, 248, 0.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(frontHandX + 6, frontHandY - 5);
+      ctx.lineTo(frontHandX - 26, frontHandY - 5);
+      ctx.moveTo(frontHandX + 4, frontHandY + 5);
+      ctx.lineTo(frontHandX - 22, frontHandY + 5);
+      if (opts.super) {
+        ctx.moveTo(frontHandX + 8, frontHandY);
+        ctx.lineTo(frontHandX - 32, frontHandY);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+  } else if (isTiltbackStance) {
+    // ⚠️ TILTBACK STANCE: PEDALS PUSH BACK, ARMS PULLED IN TO CHEST / BRAKING ⚠️
+    ctx.strokeStyle = '#064e3b';
+    ctx.lineWidth = 11;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-8, torsoY + 12);
+    ctx.lineTo(-24, torsoY + 20);
+    ctx.lineTo(-18, torsoY + 14);
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(-18, torsoY + 14, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#047857';
+    ctx.lineWidth = 13;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(8, torsoY + 12);
+    ctx.lineTo(2, torsoY + 26);
+    ctx.lineTo(8, torsoY + 16);
+    ctx.stroke();
+
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(2, torsoY + 26, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(8, torsoY + 16, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(5, torsoY + 14, 5, 2);
+  } else if (isFallenStance) {
+    // 💥 FALLEN STANCE: ARMS FLAILING IN REACTION 💥
+    ctx.strokeStyle = '#064e3b';
+    ctx.lineWidth = 11;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-10, torsoY + 10);
+    ctx.lineTo(-32, torsoY - 6);
+    ctx.stroke();
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(-34, torsoY - 8, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#047857';
+    ctx.lineWidth = 13;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(8, torsoY + 10);
+    ctx.lineTo(24, torsoY - 12);
+    ctx.stroke();
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(26, torsoY - 14, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // 🚲 NORMAL / IDLE / CRUISING POSTURE 🚲
+    ctx.fillStyle = '#064e3b';
+    ctx.beginPath();
+    ctx.roundRect(-28, torsoY + 12, 12, 32, 6);
+    ctx.fill();
+
+    ctx.fillStyle = '#047857';
+    ctx.beginPath();
+    ctx.roundRect(14, torsoY + 10, 14, 30, 6);
+    ctx.fill();
+
+    // Elbow pads
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(14, torsoY + 22, 15, 12, 3);
+    ctx.fill();
+
+    // Sporty motorcycle gloves
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(22, torsoY + 42, 7, 0, Math.PI * 2);
+    ctx.arc(-22, torsoY + 42, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(18, torsoY + 40, 8, 3);
+  }
 
   // Head & Helmet
   const headY = torsoY - 24;

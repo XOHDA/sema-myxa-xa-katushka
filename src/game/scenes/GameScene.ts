@@ -1264,7 +1264,7 @@ export class GameScene extends Phaser.Scene {
           this.player.setAngle(-tiltDeg);
         } else {
           this.player.setAngle(0);
-          this.player.setTexture(this.isBoosting ? 'sema_boost' : 'sema_lean_fwd');
+          this.player.setTexture(this.isBoosting ? (this.isSuperBoost ? 'sema_super_boost' : 'sema_boost') : 'sema_lean_fwd');
         }
       }
     } else if (this.inputState.left) {
@@ -1281,7 +1281,7 @@ export class GameScene extends Phaser.Scene {
           this.player.setAngle(tiltDeg);
         } else {
           this.player.setAngle(0);
-          this.player.setTexture(this.isBoosting ? 'sema_boost' : 'sema_lean_fwd');
+          this.player.setTexture(this.isBoosting ? (this.isSuperBoost ? 'sema_super_boost' : 'sema_boost') : 'sema_lean_fwd');
         }
       }
     } else {
@@ -1294,6 +1294,9 @@ export class GameScene extends Phaser.Scene {
           this.player.setTexture('sema_tiltback');
           const tiltDeg = this.battery <= 10 ? 25 : 18;
           this.player.setAngle(this.player.flipX ? tiltDeg : -tiltDeg);
+        } else if (this.isBoosting) {
+          this.player.setTexture(this.isSuperBoost ? 'sema_super_boost' : 'sema_boost');
+          this.player.setAngle(0);
         } else if (Math.abs(body.velocity.x) > 30) {
           // Braking / coasting lean
           this.player.setTexture('sema_lean_back');
@@ -1311,6 +1314,9 @@ export class GameScene extends Phaser.Scene {
         this.player.setTexture('sema_tiltback');
         const tiltDeg = this.battery <= 10 ? 25 : 18;
         this.player.setAngle(this.player.flipX ? tiltDeg : -tiltDeg);
+      } else if (this.isBoosting) {
+        this.player.setTexture(this.isSuperBoost ? 'sema_super_boost' : 'sema_boost');
+        this.player.setAngle(0);
       }
     }
 
