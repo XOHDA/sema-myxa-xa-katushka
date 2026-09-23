@@ -136,12 +136,15 @@ export class GameScene extends Phaser.Scene {
   private activeSpeechString: string | null = null;
   private trickPopupString: string | null = null;
 
-  // Dynamic Weather & Atmospheric Particle Emitters (Clear road visibility, rain-only)
+  // Dynamic Weather & Atmospheric Particle Emitters
   private currentWeather: WeatherType = 'clear';
   private weatherRainEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private weatherSnowEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private weatherSplashEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private tireSprayEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private weatherAtmosphereOverlay: Phaser.GameObjects.Graphics | null = null;
   private announcedWeatherTransitions: Set<WeatherType> = new Set();
+  private slipWarningCooldown = 0;
 
   // High-Energy Spark Particle System (Falls, Collisions, VOLT Energy)
   private sparkImpactEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
@@ -1564,7 +1567,22 @@ export class GameScene extends Phaser.Scene {
     this.weatherRainEmitter.setScrollFactor(0);
     this.weatherRainEmitter.setDepth(21);
 
-    // 2. Road surface water splash ripples
+    // 2. Snowflakes emitter (depth 21)
+    this.weatherSnowEmitter = this.add.particles(0, 0, 'weather_snowflake', {
+      x: { min: -150, max: 550 },
+      y: -35,
+      quantity: 4,
+      lifespan: 2200,
+      speedX: { min: -120, max: -40 },
+      speedY: { min: 140, max: 280 },
+      scale: { start: 0.8, end: 0.3 },
+      alpha: { start: 0.9, end: 0.3 },
+      emitting: false,
+    });
+    this.weatherSnowEmitter.setScrollFactor(0);
+    this.weatherSnowEmitter.setDepth(21);
+
+    // 3. Road surface water splash ripples
     this.weatherSplashEmitter = this.add.particles(0, 0, 'weather_rain_splash', {
       x: { min: -40, max: 490 },
       y: { min: 645, max: 670 },
@@ -1577,7 +1595,18 @@ export class GameScene extends Phaser.Scene {
     this.weatherSplashEmitter.setScrollFactor(0);
     this.weatherSplashEmitter.setDepth(16);
 
-    // 3. Atmosphere tint overlay (depth 18) - subtle, non-intrusive
+    // 4. Tire Water / Snow Spray Emitter (world space attached to wheel)
+    this.tireSprayEmitter = this.add.particles(0, 0, 'weather_rain_splash', {
+      speed: { min: 40, max: 140 },
+      angle: { min: 190, max: 250 },
+      scale: { start: 0.5, end: 0.1 },
+      lifespan: 380,
+      alpha: { start: 0.8, end: 0 },
+      emitting: false,
+    });
+    this.tireSprayEmitter.setDepth(10);
+
+    // 5. Atmosphere tint overlay (depth 18)
     this.weatherAtmosphereOverlay = this.add.graphics().setScrollFactor(0).setDepth(18);
 
     // Initialize with level default
@@ -1591,12 +1620,14 @@ export class GameScene extends Phaser.Scene {
     switch (weather) {
       case 'clear':
         this.weatherRainEmitter?.stop();
+        this.weatherSnowEmitter?.stop();
         this.weatherSplashEmitter?.stop();
         this.setSkyColor(0x38bdf8, isTransition);
         this.drawAtmosphereOverlay(null);
         break;
 
       case 'light-rain':
+        this.weatherSnowEmitter?.stop();
         this.weatherRainEmitter?.setTexture('weather_raindrop');
         this.weatherRainEmitter?.setParticleTint(0xbae6fd);
         this.weatherRainEmitter?.setQuantity(3);
@@ -1605,6 +1636,40 @@ export class GameScene extends Phaser.Scene {
         this.weatherSplashEmitter?.start();
         this.setSkyColor(0x334155, isTransition);
         this.drawAtmosphereOverlay('rain');
+        break;
+
+      case 'heavy-rain':
+        this.weatherSnowEmitter?.stop();
+        this.weatherRainEmitter?.setTexture('weather_raindrop');
+        this.weatherRainEmitter?.setParticleTint(0x7dd3fc);
+        this.weatherRainEmitter?.setQuantity(8);
+        this.weatherRainEmitter?.start();
+        this.weatherSplashEmitter?.setQuantity(3);
+        this.weatherSplashEmitter?.start();
+        this.setSkyColor(0x1e293b, isTransition);
+        this.drawAtmosphereOverlay('heavy-rain');
+        break;
+
+      case 'snow':
+        this.weatherRainEmitter?.stop();
+        this.weatherSplashEmitter?.stop();
+        this.weatherSnowEmitter?.setTexture('weather_snowflake');
+        this.weatherSnowEmitter?.setParticleTint(0xffffff);
+        this.weatherSnowEmitter?.setQuantity(5);
+        this.weatherSnowEmitter?.start();
+        this.setSkyColor(0x384559, isTransition);
+        this.drawAtmosphereOverlay('snow');
+        break;
+
+      case 'blizzard':
+        this.weatherRainEmitter?.stop();
+        this.weatherSplashEmitter?.stop();
+        this.weatherSnowEmitter?.setTexture('weather_snowflake');
+        this.weatherSnowEmitter?.setParticleTint(0xe0f2fe);
+        this.weatherSnowEmitter?.setQuantity(12);
+        this.weatherSnowEmitter?.start();
+        this.setSkyColor(0x0f172a, isTransition);
+        this.drawAtmosphereOverlay('blizzard');
         break;
     }
 
@@ -1615,13 +1680,25 @@ export class GameScene extends Phaser.Scene {
       let speechText: string | null = null;
 
       if (weather === 'light-rain') {
-        bannerText = '🌧️ ПОШЁЛ ЛЁГКИЙ ДОЖДЬ';
+        bannerText = '🌧️ ПОШЁЛ СЛАБЫЙ ДОЖДЬ';
         bannerColor = '#38bdf8';
-        speechText = RU.weatherRainStartSpeech;
+        speechText = 'ДОЖДЬ! СЦЕПЛЕНИЕ СНИЖЕНО!';
+      } else if (weather === 'heavy-rain') {
+        bannerText = '⛈️ ПРОЛИВНОЙ ЛИВЕНЬ! ОПАСНОСТЬ СКОЛЬЖЕНИЯ!';
+        bannerColor = '#0284c7';
+        speechText = 'ЛИВЕНЬ! СЕМА, ДЕРЖИ РАВНОВЕСИЕ!';
+      } else if (weather === 'snow') {
+        bannerText = '❄️ ПОШЁЛ СНЕГОПАД! ГОЛОЛЁД НА ДОРОГЕ!';
+        bannerColor = '#38bdf8';
+        speechText = 'СНЕГ! ОСТОРОЖНО, ГОЛОЛЁД!';
+      } else if (weather === 'blizzard') {
+        bannerText = '🌬️ СНЕЖНЫЙ БУРАН И МЕТЕЛЬ! ВЕТЕР И ЛЁД!';
+        bannerColor = '#818cf8';
+        speechText = 'МЕТЕЛЬ! ДЕРЖИСЬ КРЕПЧЕ!';
       } else {
         bannerText = '☀️ РАСПОГОДИЛОСЬ: ЯСНО';
         bannerColor = '#facc15';
-        speechText = RU.weatherClearSpeech;
+        speechText = 'РАСПОГОДИЛОСЬ!';
       }
 
       if (bannerText && this.player) {
@@ -1669,8 +1746,25 @@ export class GameScene extends Phaser.Scene {
     if (!type) return;
 
     if (type === 'rain') {
-      this.weatherAtmosphereOverlay.fillStyle(0x0f172a, 0.06);
+      this.weatherAtmosphereOverlay.fillStyle(0x0f172a, 0.08);
       this.weatherAtmosphereOverlay.fillRect(0, 0, 450, 800);
+    } else if (type === 'heavy-rain') {
+      this.weatherAtmosphereOverlay.fillStyle(0x0284c7, 0.12);
+      this.weatherAtmosphereOverlay.fillRect(0, 0, 450, 800);
+      this.weatherAtmosphereOverlay.fillStyle(0x090d16, 0.35);
+      this.weatherAtmosphereOverlay.fillRect(0, 0, 450, 140);
+    } else if (type === 'snow') {
+      this.weatherAtmosphereOverlay.fillStyle(0xe0f2fe, 0.06);
+      this.weatherAtmosphereOverlay.fillRect(0, 0, 450, 800);
+    } else if (type === 'blizzard') {
+      this.weatherAtmosphereOverlay.fillStyle(0x38bdf8, 0.12);
+      this.weatherAtmosphereOverlay.fillRect(0, 0, 450, 800);
+
+      this.weatherAtmosphereOverlay.fillStyle(0xe0f2fe, 0.25);
+      this.weatherAtmosphereOverlay.fillRect(0, 0, 20, 800);
+      this.weatherAtmosphereOverlay.fillRect(430, 0, 20, 800);
+      this.weatherAtmosphereOverlay.fillRect(0, 0, 450, 18);
+      this.weatherAtmosphereOverlay.fillRect(0, 782, 450, 18);
     }
   }
 
@@ -1678,19 +1772,15 @@ export class GameScene extends Phaser.Scene {
     const progress = Phaser.Math.Clamp(this.distance / Math.max(1, this.levelConfig.length), 0, 1);
     let targetWeather: WeatherType = this.levelConfig.weather;
 
-    // Dynamic weather: completely clear tracks with occasional light rain showers
     switch (this.levelConfig.id) {
       case 2:
-        // Occasional light rain shower midway through the rooftop run
         targetWeather = progress >= 0.35 && progress <= 0.70 ? 'light-rain' : 'clear';
         break;
       case 6:
-        // Wet asphalt run with occasional rain, clearing before finish line
-        targetWeather = progress <= 0.85 ? 'light-rain' : 'clear';
+        targetWeather = progress <= 0.85 ? 'heavy-rain' : 'light-rain';
         break;
       case 11:
-        // Brief rain shower across the bridge, clears up for the finale
-        targetWeather = progress >= 0.40 && progress <= 0.72 ? 'light-rain' : 'clear';
+        targetWeather = progress >= 0.25 && progress <= 0.85 ? 'blizzard' : 'snow';
         break;
       default:
         targetWeather = this.levelConfig.weather;
@@ -1701,12 +1791,36 @@ export class GameScene extends Phaser.Scene {
       this.applyWeather(targetWeather, true);
     }
 
-    // Speed-reactive particle physics: slant rain into the wind as player accelerates
+    // Speed-reactive rain particles
+    const vx = this.player.body?.velocity.x || 0;
     if (this.weatherRainEmitter && this.weatherRainEmitter.emitting) {
-      const vx = this.player.body?.velocity.x || 0;
       const slantX = Phaser.Math.Clamp(-120 - Math.abs(vx) * 0.35, -550, -80);
       const speedY = Phaser.Math.Clamp(750 + Math.abs(vx) * 0.25, 650, 1100);
       this.weatherRainEmitter.setParticleSpeed(slantX, speedY);
+    }
+
+    // Speed-reactive snow particles
+    if (this.weatherSnowEmitter && this.weatherSnowEmitter.emitting) {
+      const isBlizzard = this.currentWeather === 'blizzard';
+      const slantX = Phaser.Math.Clamp((isBlizzard ? -260 : -80) - Math.abs(vx) * 0.25, -600, -40);
+      const speedY = isBlizzard ? Phaser.Math.Clamp(280 + Math.abs(vx) * 0.15, 200, 450) : Phaser.Math.Between(120, 240);
+      this.weatherSnowEmitter.setParticleSpeed(slantX, speedY);
+    }
+
+    // Tire spray emitter
+    if (this.tireSprayEmitter) {
+      const isWet = this.currentWeather === 'light-rain' || this.currentWeather === 'heavy-rain';
+      const isSnowy = this.currentWeather === 'snow' || this.currentWeather === 'blizzard';
+      const speed = Math.abs(vx);
+      const onGround = this.player.body?.blocked.down || this.player.body?.touching.down;
+
+      if ((isWet || isSnowy) && speed > 80 && onGround) {
+        this.tireSprayEmitter.setTexture(isWet ? 'weather_rain_splash' : 'weather_snow_spray');
+        this.tireSprayEmitter.setPosition(this.player.x - 22, this.player.y + 42);
+        this.tireSprayEmitter.start();
+      } else {
+        this.tireSprayEmitter.stop();
+      }
     }
   }
 
@@ -1981,8 +2095,59 @@ export class GameScene extends Phaser.Scene {
         : Math.round(460 + this.levelConfig.id * 12 + controllerAccelBonus * 0.5);
     }
 
-    const drag = onGround ? Math.round(780 + this.levelConfig.id * 10) : 250;
+    // Calculate Traction Factor based on Weather and Hydro Protection Upgrade
+    const hydroLvl = this.upgrades?.hydroLevel || 0;
+    const hydroMitigation = Math.min(0.85, hydroLvl * 0.28);
+
+    let weatherGripLoss = 0;
+    switch (this.currentWeather) {
+      case 'light-rain':
+        weatherGripLoss = 0.15;
+        break;
+      case 'heavy-rain':
+        weatherGripLoss = 0.30;
+        break;
+      case 'snow':
+        weatherGripLoss = 0.40;
+        break;
+      case 'blizzard':
+        weatherGripLoss = 0.50;
+        break;
+      case 'clear':
+      default:
+        weatherGripLoss = 0;
+        break;
+    }
+
+    const netGripLoss = weatherGripLoss * (1.0 - hydroMitigation);
+    const tractionFactor = 1.0 - netGripLoss;
+
+    accel = Math.round(accel * tractionFactor);
+    const drag = onGround ? Math.round((780 + this.levelConfig.id * 10) * tractionFactor) : 250;
     body.setDragX(drag);
+
+    // Slippage warning when accelerating / boosting on slippery road
+    if (this.slipWarningCooldown > 0) {
+      this.slipWarningCooldown -= delta / 1000;
+    }
+    const currentSpeedVal = Math.abs(body.velocity.x);
+    if (
+      netGripLoss >= 0.22 &&
+      onGround &&
+      (this.inputState.left || this.inputState.right || this.isBoosting) &&
+      currentSpeedVal > 220 &&
+      this.slipWarningCooldown <= 0
+    ) {
+      this.slipWarningCooldown = 4.0;
+      soundManager.playWobbleAlert();
+      const warningMsg = (this.currentWeather === 'snow' || this.currentWeather === 'blizzard')
+        ? '❄️ ГОЛОЛЁД! ЗАНОС МОНОКОЛЕСА!'
+        : '⚠️ МОКРЫЙ АСФАЛЬТ! СКОЛЬЖЕНИЕ!';
+      const warningColor = (this.currentWeather === 'snow' || this.currentWeather === 'blizzard')
+        ? '#38bdf8'
+        : '#f59e0b';
+      this.createFloatingText(this.player.x, this.player.y - 65, warningMsg, warningColor);
+    }
 
     // Boost activation with 3-second cutout limit (Blocked when battery is 0!)
     if (this.inputState.boost && this.battery > 0) {
@@ -4172,11 +4337,12 @@ export class GameScene extends Phaser.Scene {
   public pauseGame() {
     if (this.isSceneReady && this.sys && this.sys.settings) {
       try {
-        if (this.sys.settings.status === Phaser.Scenes.RUNNING) {
+        const sceneKey = this.sys.settings.key || 'GameScene';
+        if (this.sys.settings.status === Phaser.Scenes.RUNNING && this.scene.isActive(sceneKey)) {
           if (this.physics?.world) {
             this.physics.pause();
           }
-          this.scene.pause();
+          this.scene.pause(sceneKey);
         }
       } catch {
         // Ignore errors if scene is transitioning or destroyed
@@ -4189,11 +4355,14 @@ export class GameScene extends Phaser.Scene {
   public resumeGame() {
     if (this.isSceneReady && this.sys && this.sys.settings) {
       try {
-        if (this.sys.settings.status === Phaser.Scenes.PAUSED) {
+        const sceneKey = this.sys.settings.key || 'GameScene';
+        if (this.sys.settings.status === Phaser.Scenes.PAUSED || this.scene.isPaused(sceneKey)) {
           if (this.physics?.world) {
             this.physics.resume();
           }
-          this.scene.resume();
+          if (this.scene.isPaused(sceneKey)) {
+            this.scene.resume(sceneKey);
+          }
         }
       } catch {
         // Ignore errors if scene is transitioning or destroyed

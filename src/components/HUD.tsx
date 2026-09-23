@@ -13,14 +13,32 @@ export const HUD: React.FC<HUDProps> = ({ stats, onPause }) => {
     switch (weather) {
       case 'light-rain':
         return {
-          label: RU.weatherLightRain,
+          label: RU.weatherLightRain || 'СЛАБЫЙ ДОЖДЬ',
           icon: '🌧️',
           style: 'bg-sky-500/20 text-sky-300 border-sky-500/40 animate-pulse',
+        };
+      case 'heavy-rain':
+        return {
+          label: RU.weatherHeavyRain || 'ЛИВЕНЬ И СКОЛЬЖЕНИЕ',
+          icon: '⛈️',
+          style: 'bg-blue-600/30 text-blue-200 border-blue-400/60 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]',
+        };
+      case 'snow':
+        return {
+          label: RU.weatherSnow || 'СНЕГОПАД И ГОЛОЛЁД',
+          icon: '❄️',
+          style: 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.4)]',
+        };
+      case 'blizzard':
+        return {
+          label: RU.weatherBlizzard || 'МЕТЕЛЬ И ЛЁД',
+          icon: '🌬️',
+          style: 'bg-indigo-600/30 text-indigo-200 border-indigo-400/70 animate-pulse shadow-[0_0_10px_rgba(99,102,241,0.6)]',
         };
       case 'clear':
       default:
         return {
-          label: RU.weatherClear,
+          label: RU.weatherClear || 'ЯСНО',
           icon: '☀️',
           style: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
         };

@@ -115,6 +115,9 @@ export function generateGameTextures(
     createSkeletonSemaTexture(scene, 'sema_skeleton_green', '#39ff14', '#10b981');
   }
 
+  // Weather Particles (Rain, Snow, Splashes, Spray)
+  createWeatherParticleTextures(scene);
+
   if (scene.textures.exists('token_volt')) {
     return;
   }
@@ -2450,9 +2453,9 @@ function createPoopSplatTexture(scene: Phaser.Scene) {
   scene.textures.addCanvas('poop_splat', canvas);
 }
 
-function createWeatherParticleTextures(scene: Phaser.Scene) {
+export function createWeatherParticleTextures(scene: Phaser.Scene) {
   // 1. Sleek atmospheric raindrop streak
-  {
+  if (!scene.textures.exists('weather_raindrop')) {
     const canvas = document.createElement('canvas');
     canvas.width = 6;
     canvas.height = 36;
@@ -2475,7 +2478,7 @@ function createWeatherParticleTextures(scene: Phaser.Scene) {
   }
 
   // 2. Raindrop splash on asphalt / road
-  {
+  if (!scene.textures.exists('weather_rain_splash')) {
     const canvas = document.createElement('canvas');
     canvas.width = 24;
     canvas.height = 12;
@@ -2503,7 +2506,7 @@ function createWeatherParticleTextures(scene: Phaser.Scene) {
   // Replaced with clean ambient light streak
 
   // 4. Cyber holographic neon rain streak
-  {
+  if (!scene.textures.exists('weather_cyber_rain')) {
     const canvas = document.createElement('canvas');
     canvas.width = 6;
     canvas.height = 38;
@@ -2526,7 +2529,7 @@ function createWeatherParticleTextures(scene: Phaser.Scene) {
   }
 
   // 5. Industrial hot smog embers & sparks
-  {
+  if (!scene.textures.exists('weather_ember')) {
     const canvas = document.createElement('canvas');
     canvas.width = 16;
     canvas.height = 16;
@@ -2546,7 +2549,7 @@ function createWeatherParticleTextures(scene: Phaser.Scene) {
   }
 
   // 6. Warm sunbeam pollen / golden dust mote
-  {
+  if (!scene.textures.exists('weather_pollen')) {
     const canvas = document.createElement('canvas');
     canvas.width = 16;
     canvas.height = 16;
@@ -2564,11 +2567,49 @@ function createWeatherParticleTextures(scene: Phaser.Scene) {
       scene.textures.addCanvas('weather_pollen', canvas);
     }
   }
+
+  // 7. Snowflake for snow and blizzard weather
+  if (!scene.textures.exists('weather_snowflake')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 14;
+    canvas.height = 14;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.save();
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(7, 7, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(224, 242, 254, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+      scene.textures.addCanvas('weather_snowflake', canvas);
+    }
+  }
+
+  // 8. Snow Spray for tire displacement
+  if (!scene.textures.exists('weather_snow_spray')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10;
+    canvas.height = 10;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = 'rgba(240, 249, 255, 0.9)';
+      ctx.beginPath();
+      ctx.arc(5, 5, 4, 0, Math.PI * 2);
+      ctx.fill();
+      scene.textures.addCanvas('weather_snow_spray', canvas);
+    }
+  }
 }
 
 function createSparkParticleTextures(scene: Phaser.Scene) {
   // 1. Gold high-voltage VOLT spark (starburst + incandescent core)
-  {
+  if (!scene.textures.exists('spark_point_gold')) {
     const canvas = document.createElement('canvas');
     canvas.width = 18;
     canvas.height = 18;
@@ -2599,7 +2640,7 @@ function createSparkParticleTextures(scene: Phaser.Scene) {
   }
 
   // 2. Fiery orange metal friction spark (for falls, grinding, obstacle collisions)
-  {
+  if (!scene.textures.exists('spark_point_orange')) {
     const canvas = document.createElement('canvas');
     canvas.width = 16;
     canvas.height = 16;
@@ -2629,7 +2670,7 @@ function createSparkParticleTextures(scene: Phaser.Scene) {
   }
 
   // 3. Electric cyan plasma arc spark (for electric surges and lightning)
-  {
+  if (!scene.textures.exists('spark_point_cyan')) {
     const canvas = document.createElement('canvas');
     canvas.width = 16;
     canvas.height = 16;
@@ -2659,7 +2700,7 @@ function createSparkParticleTextures(scene: Phaser.Scene) {
   }
 
   // 4. White-hot diamond spark flare
-  {
+  if (!scene.textures.exists('spark_point_white')) {
     const canvas = document.createElement('canvas');
     canvas.width = 12;
     canvas.height = 12;
@@ -2687,7 +2728,7 @@ function createSparkParticleTextures(scene: Phaser.Scene) {
   }
 
   // 5. Elongated friction streak for grinding along asphalt
-  {
+  if (!scene.textures.exists('spark_streak')) {
     const canvas = document.createElement('canvas');
     canvas.width = 18;
     canvas.height = 6;
@@ -2707,7 +2748,7 @@ function createSparkParticleTextures(scene: Phaser.Scene) {
   }
 
   // 6. Expanding electric shockwave ring
-  {
+  if (!scene.textures.exists('spark_ring')) {
     const canvas = document.createElement('canvas');
     canvas.width = 36;
     canvas.height = 36;

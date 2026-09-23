@@ -144,8 +144,11 @@ export const RU = {
 
   // Погода и атмосфера
   weather: 'ПОГОДА',
-  weatherClear: 'Ясно',
-  weatherLightRain: 'Лёгкий дождь',
+  weatherClear: 'ЯСНО',
+  weatherLightRain: 'СЛАБЫЙ ДОЖДЬ (-15% СЦЕПЛЕНИЕ)',
+  weatherHeavyRain: 'ПРОЛИВНОЙ ЛИВЕНЬ (СКОЛЬЖЕНИЕ -30%)',
+  weatherSnow: 'СНЕГОПАД И ГОЛОЛЁД (СКОЛЬЖЕНИЕ -40%)',
+  weatherBlizzard: 'МЕТЕЛЬ И БУРАН (ВЕТЕР И ЛЁД -50%)',
   weatherFog: 'Густой туман',
   weatherStorm: 'Гроза и ливень',
   weatherSunsetHaze: 'Закатная дымка',

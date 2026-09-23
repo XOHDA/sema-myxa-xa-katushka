@@ -37,6 +37,12 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
     switch (weather) {
       case 'light-rain':
         return { text: '🌧️ Дождь', color: 'text-sky-300' };
+      case 'heavy-rain':
+        return { text: '⛈️ Ливень', color: 'text-blue-300' };
+      case 'snow':
+        return { text: '❄️ Снегопад', color: 'text-cyan-200' };
+      case 'blizzard':
+        return { text: '🌬️ Метель', color: 'text-indigo-200' };
       case 'clear':
       default:
         return { text: '☀️ Ясно', color: 'text-amber-200' };

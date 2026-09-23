@@ -229,6 +229,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
 
     const game = new Phaser.Game(config);
+    // Disable Phaser's auto-pause on blur to prevent warnings when preview iframe loses focus
+    game.events.off(Phaser.Core.Events.BLUR);
     gameRef.current = game;
 
     return () => {

@@ -2,7 +2,7 @@ export type GameState = 'MENU' | 'PLAYING' | 'PAUSED' | 'GAMEOVER' | 'VICTORY';
 
 export type LevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
-export type WeatherType = 'clear' | 'light-rain';
+export type WeatherType = 'clear' | 'light-rain' | 'heavy-rain' | 'snow' | 'blizzard';
 
 export interface LevelConfig {
   id: LevelId;
