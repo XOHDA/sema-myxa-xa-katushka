@@ -9,6 +9,8 @@ interface TouchControlsProps {
   inputState: InputState;
   disabled?: boolean;
   boostHoldDuration?: number;
+  battery?: number;
+  isTiltback?: boolean;
 }
 
 export const TouchControls: React.FC<TouchControlsProps> = ({
@@ -16,6 +18,8 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   inputState,
   disabled = false,
   boostHoldDuration = 0,
+  battery = 100,
+  isTiltback = false,
 }) => {
   const [activePointers, setActivePointers] = useState<Record<string, keyof InputState>>({});
   const activePointersRef = useRef<Record<string, keyof InputState>>({});
@@ -181,7 +185,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
         {/* Столбик: ПРЫЖОК сверху над ПРИСЕДОМ, одинакового компактного размера */}
         <div className="flex flex-col items-center gap-1.5 sm:gap-2">
-          {/* Кнопка ПРЫЖОК (такой же размер и форма, как у приседа, находится строго над ним) */}
+          {/* Кнопка ПРЫЖОК (отключается/сигнализирует красным при разряженном колесе) */}
           <button
             id="btn-touch-jump"
             aria-label={RU.jumpButton}
@@ -192,14 +196,24 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             onPointerUp={(e) => handlePointerUpOrCancel(e.pointerId)}
             onPointerCancel={(e) => handlePointerUpOrCancel(e.pointerId)}
             className={`w-13 h-13 sm:w-15 sm:h-15 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all duration-75 backdrop-blur-md border-2 ${
-              inputState.jump
+              battery <= 0
+                ? 'bg-red-950/50 border-red-800/80 text-red-400/60 opacity-60'
+                : inputState.jump
                 ? 'bg-emerald-500/65 border-emerald-200 scale-95 shadow-[0_0_20px_rgba(16,185,129,0.9)]'
                 : 'bg-gradient-to-br from-emerald-950/80 to-black/75 border-emerald-400/70 text-white shadow-[0_0_10px_rgba(16,185,129,0.35)] active:scale-95'
             }`}
           >
-            <ChevronUp className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-300 stroke-[3]" />
-            <span className="text-[8.5px] sm:text-[9.5px] font-black tracking-wider text-emerald-200">
-              {RU.jumpButton}
+            <ChevronUp
+              className={`w-5 h-5 sm:w-6 sm:h-6 stroke-[3] ${
+                battery <= 0 ? 'text-red-500/60 line-through' : 'text-emerald-300'
+              }`}
+            />
+            <span
+              className={`text-[8.5px] sm:text-[9.5px] font-black tracking-wider ${
+                battery <= 0 ? 'text-red-400/70' : 'text-emerald-200'
+              }`}
+            >
+              {battery <= 0 ? 'НЕТ ⚡' : RU.jumpButton}
             </span>
           </button>
 

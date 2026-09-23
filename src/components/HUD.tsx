@@ -340,6 +340,56 @@ export const HUD: React.FC<HUDProps> = ({ stats, onPause }) => {
           </div>
         )}
 
+        {/* 0. БОСС ДУЭЛЬ С ФАНТОМАСОМ НА МОНОКОЛЕСЕ SV */}
+        {stats.bossDuelActive && !stats.isCutout && (
+          <div
+            id="hud-boss-duel-card"
+            className="flex flex-col items-center gap-1.5 bg-gradient-to-r from-purple-950/95 via-indigo-950/95 to-purple-950/95 backdrop-blur-md px-5 py-2.5 rounded-2xl border-2 border-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.85)] animate-pulse"
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 fill-cyan-400 animate-bounce" />
+              <span className="text-xs sm:text-sm font-black text-yellow-300 tracking-wider uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                ⚡ ДУЭЛЬ: СЁМА vs ФАНТОМАС (SV) ⚡
+              </span>
+              <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 fill-purple-400 animate-pulse" />
+            </div>
+
+            {/* Позиция в дуэли */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide border shadow-md ${
+                  (stats.bossDistanceLead || 0) > 0
+                    ? 'bg-emerald-600/90 text-white border-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.7)]'
+                    : (stats.bossDistanceLead || 0) < 0
+                    ? 'bg-rose-600/90 text-white border-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.7)]'
+                    : 'bg-amber-600/90 text-white border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.7)]'
+                }`}
+              >
+                {(stats.bossDistanceLead || 0) > 0
+                  ? `🏁 Сёма впереди на +${stats.bossDistanceLead} м!`
+                  : (stats.bossDistanceLead || 0) < 0
+                  ? `⚠ Фантомас на SV лидирует: ${Math.abs(stats.bossDistanceLead || 0)} м!`
+                  : '⚔ Идут колесо в колесо!'}
+              </span>
+            </div>
+
+            {/* Шкала слипстрима при движении в кильватере Фантомаса */}
+            {stats.bossSlipstreamActive && (
+              <div className="flex flex-col items-center w-full mt-1">
+                <span className="text-[10px] font-black text-cyan-200 uppercase tracking-wide animate-pulse">
+                  🚀 СЛИПСТРИМ: {stats.bossSlipstreamCharge}% (ДЕРЖИСЬ СЗАДИ ДЛЯ РЫВКА!)
+                </span>
+                <div className="w-48 sm:w-60 h-2 bg-black/80 rounded-full overflow-hidden mt-1 border border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.9)]">
+                  <div
+                    className="h-full bg-gradient-to-r from-cyan-400 via-sky-300 to-purple-400 transition-all duration-75 shadow-[0_0_12px_#38bdf8]"
+                    style={{ width: `${Math.min(100, Math.max(0, stats.bossSlipstreamCharge || 0))}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 0.5. ПРЕДУПРЕЖДЕНИЕ О БУСТЕ И ОПАСНОСТИ ПРОДАВА (> 0.4 СЕК) */}
         {!stats.isCutout && stats.boostHoldDuration > 0.4 && (
           <div

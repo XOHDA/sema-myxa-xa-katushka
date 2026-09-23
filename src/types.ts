@@ -55,7 +55,7 @@ export interface PlayerStats {
   levelName: string;
   levelLength: number;
   // Boss Duel (Фантомас на моноколесе SV)
-  bossDuelActive: boolean;
+  bossDuelActive?: boolean;
   bossName?: string;
   bossDistanceLead?: number; // meters player is ahead (+) or behind (-)
   bossStunned?: boolean;

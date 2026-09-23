@@ -21,6 +21,8 @@ export function generateGameTextures(scene: Phaser.Scene) {
   createSemaTexture(scene, 'sema_super_boost', { lean: 32, air: false, glow: '#fbbf24', boost: true, super: true });
   createSemaTexture(scene, 'sema_tiltback', { lean: -26, air: false, glow: '#ef4444', boost: false, tiltback: true });
   createSemaTexture(scene, 'sema_fall', { lean: -45, air: true, glow: '#ef4444', boost: false, fallen: true });
+  createSemaTexture(scene, 'sema_win', { lean: 0, air: false, glow: '#fbbf24', boost: false, win: true });
+  createSemaTexture(scene, 'sema_lose', { lean: -6, air: false, glow: '#ef4444', boost: false, lose: true });
   createSkeletonSemaTexture(scene, 'sema_skeleton_cyan', '#00ffff', '#38bdf8');
   createSkeletonSemaTexture(scene, 'sema_skeleton_magenta', '#ff007f', '#f43f5e');
   createSkeletonSemaTexture(scene, 'sema_skeleton_green', '#39ff14', '#10b981');
@@ -68,12 +70,18 @@ export function generateGameTextures(scene: Phaser.Scene) {
 
   // 11. HIGH-ENERGY IMPACT & VOLT SPARK SYSTEM PARTICLES
   createSparkParticleTextures(scene);
+
+  // 12. BOSS FANTÔMAS ON MONOWHEEL SV (DUEL)
+  createFantomasBossTextures(scene);
+
+  // 13. RACING TRACK HIGH-SPEED CIRCUIT (DUEL WITH FANTOMAS)
+  createRacingTrackTextures(scene);
 }
 
 function createSemaTexture(
   scene: Phaser.Scene,
   key: string,
-  opts: { lean: number; air: boolean; glow: string; boost: boolean; super?: boolean; fallen?: boolean; crouch?: boolean; tiltback?: boolean }
+  opts: { lean: number; air: boolean; glow: string; boost: boolean; super?: boolean; fallen?: boolean; crouch?: boolean; tiltback?: boolean; win?: boolean; lose?: boolean }
 ) {
   const width = 170;
   const height = 230;
@@ -122,14 +130,6 @@ function createSemaTexture(
   // --- EUC WHEEL & CHASSIS (Bottom) ---
   // Tire radius 38px, center at (0, -38)
   const wheelY = -38;
-
-  // Wheel shadow on ground
-  if (!opts.air && !opts.fallen) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 36, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
 
   // Outer Tire
   ctx.fillStyle = '#0f172a';
@@ -523,6 +523,78 @@ function createSemaTexture(
     ctx.beginPath();
     ctx.arc(26, torsoY - 14, 7.5, 0, Math.PI * 2);
     ctx.fill();
+  } else if (opts.win) {
+    // 🏆 TRIUMPHANT VICTORY POSTURE: BOTH ARMS RAISED IN VICTORY! 🏆
+    ctx.strokeStyle = '#064e3b';
+    ctx.lineWidth = 11;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-10, torsoY + 10);
+    ctx.lineTo(-26, torsoY - 14);
+    ctx.lineTo(-20, torsoY - 42);
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(-20, torsoY - 44, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#047857';
+    ctx.lineWidth = 13;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(10, torsoY + 10);
+    ctx.lineTo(26, torsoY - 14);
+    ctx.lineTo(22, torsoY - 42);
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(22, torsoY - 44, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(18, torsoY - 46, 8, 3);
+
+    // Gold champion victory sparks
+    ctx.fillStyle = '#facc15';
+    [
+      [-32, torsoY - 50],
+      [32, torsoY - 50],
+      [0, torsoY - 60],
+      [-20, torsoY - 65],
+      [20, torsoY - 65],
+    ].forEach(([sx, sy]) => {
+      ctx.fillRect(sx - 2.5, sy - 2.5, 5, 5);
+    });
+  } else if (opts.lose) {
+    // 💔 DEFEATED / SURPRISED POSTURE: HANDS SCRATCHING HEAD / SLUMPED 💔
+    ctx.strokeStyle = '#064e3b';
+    ctx.lineWidth = 11;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-10, torsoY + 12);
+    ctx.lineTo(-22, torsoY + 4);
+    ctx.lineTo(-12, torsoY - 20);
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(-12, torsoY - 22, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#047857';
+    ctx.lineWidth = 13;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(10, torsoY + 12);
+    ctx.lineTo(22, torsoY + 28);
+    ctx.lineTo(14, torsoY + 36);
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(14, torsoY + 38, 7.5, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     // 🚲 NORMAL / IDLE / CRUISING POSTURE 🚲
     ctx.fillStyle = '#064e3b';
@@ -579,13 +651,55 @@ function createSemaTexture(
   ctx.roundRect(2, headY - 10, 20, 16, [4, 8, 8, 4]);
   ctx.fill();
 
-  // Visor reflection shine
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(6, headY - 7);
-  ctx.lineTo(18, headY + 3);
-  ctx.stroke();
+  // Visor reflection shine or crying tears
+  if (opts.lose) {
+    // Crying streams of tears coming from under visor
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.95)';
+    ctx.beginPath();
+    ctx.moveTo(8, headY + 2);
+    ctx.quadraticCurveTo(0, headY + 16, -6, headY + 36);
+    ctx.lineTo(2, headY + 38);
+    ctx.quadraticCurveTo(6, headY + 18, 14, headY + 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Secondary tear stream
+    ctx.beginPath();
+    ctx.moveTo(16, headY + 2);
+    ctx.quadraticCurveTo(24, headY + 16, 28, headY + 36);
+    ctx.lineTo(22, headY + 38);
+    ctx.quadraticCurveTo(18, headY + 18, 12, headY + 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tear drops falling
+    ctx.beginPath();
+    ctx.arc(-8, headY + 44, 4, 0, Math.PI * 2);
+    ctx.arc(30, headY + 44, 4, 0, Math.PI * 2);
+    ctx.arc(-14, headY + 54, 3, 0, Math.PI * 2);
+    ctx.arc(36, headY + 54, 3, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (opts.win) {
+    // Super golden star reflection in visor
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(6, headY - 6);
+    ctx.lineTo(18, headY + 4);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(14, headY - 4, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(6, headY - 7);
+    ctx.lineTo(18, headY + 3);
+    ctx.stroke();
+  }
 
   // Chin guard & confident beard / face profile
   ctx.fillStyle = '#1e293b';
@@ -2560,20 +2674,22 @@ function createSparkParticleTextures(scene: Phaser.Scene) {
       scene.textures.addCanvas('spark_ring', canvas);
     }
   }
-
-  // 7. Boss Fantômas on Monocycle SV Textures
-  createFantomasBossTextures(scene);
 }
 
 function createFantomasBossTextures(scene: Phaser.Scene) {
-  const states: Array<{ key: string; boost?: boolean; stun?: boolean; laugh?: boolean }> = [
+  const states: Array<{ key: string; boost?: boolean; stun?: boolean; laugh?: boolean; cry?: boolean }> = [
     { key: 'boss_fantomas' },
     { key: 'boss_fantomas_boost', boost: true },
     { key: 'boss_fantomas_stun', stun: true },
     { key: 'boss_fantomas_laugh', laugh: true },
+    { key: 'boss_fantomas_cry', cry: true },
   ];
 
   states.forEach((st) => {
+    if (scene.textures.exists(st.key)) {
+      return;
+    }
+
     const canvas = document.createElement('canvas');
     canvas.width = 180;
     canvas.height = 250;
@@ -2584,7 +2700,7 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
 
     const cx = 85;
     const wheelY = 195;
-    const leanAngle = st.boost ? 0.28 : st.stun ? -0.22 : 0.05;
+    const leanAngle = st.boost ? 0.28 : st.stun ? -0.22 : st.cry ? -0.12 : st.laugh ? 0.08 : 0.05;
 
     // Center pivot near wheel axle
     ctx.translate(cx, wheelY);
@@ -2800,28 +2916,46 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
       ctx.arc(cx - 38, torsoY - 22, 7, 0, Math.PI * 2);
       ctx.arc(cx + 40, torsoY - 22, 7, 0, Math.PI * 2);
       ctx.fill();
+    } else if (st.cry) {
+      // Slumped arms clutched near face / wiping tears in despair
+      ctx.strokeStyle = '#2e1065';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - 14, torsoY + 12);
+      ctx.lineTo(cx - 24, torsoY - 6);
+      ctx.lineTo(cx - 10, torsoY - 16);
+      ctx.moveTo(cx + 14, torsoY + 12);
+      ctx.lineTo(cx + 24, torsoY - 6);
+      ctx.lineTo(cx + 10, torsoY - 16);
+      ctx.stroke();
+
+      // Black gloves covering cheeks
+      ctx.fillStyle = '#09090b';
+      ctx.beginPath();
+      ctx.arc(cx - 10, torsoY - 18, 7.5, 0, Math.PI * 2);
+      ctx.arc(cx + 10, torsoY - 18, 7.5, 0, Math.PI * 2);
+      ctx.fill();
     } else if (st.laugh) {
-      // Right hand raised in victory fist pump
+      // Both hands raised in triumphant double fist pump
       ctx.strokeStyle = '#2e1065';
       ctx.lineWidth = 10;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(cx + 14, torsoY + 12);
-      ctx.lineTo(cx + 34, torsoY - 8);
-      ctx.lineTo(cx + 28, torsoY - 32);
+      ctx.lineTo(cx + 36, torsoY - 8);
+      ctx.lineTo(cx + 30, torsoY - 36);
+
+      ctx.moveTo(cx - 14, torsoY + 12);
+      ctx.lineTo(cx - 36, torsoY - 8);
+      ctx.lineTo(cx - 30, torsoY - 36);
       ctx.stroke();
 
       ctx.fillStyle = '#09090b';
       ctx.beginPath();
-      ctx.arc(cx + 28, torsoY - 34, 8, 0, Math.PI * 2);
+      ctx.arc(cx + 30, torsoY - 38, 8, 0, Math.PI * 2);
+      ctx.arc(cx - 30, torsoY - 38, 8, 0, Math.PI * 2);
       ctx.fill();
-
-      // Left hand on hip
-      ctx.beginPath();
-      ctx.moveTo(cx - 14, torsoY + 12);
-      ctx.lineTo(cx - 28, torsoY + 28);
-      ctx.lineTo(cx - 16, torsoY + 34);
-      ctx.stroke();
     } else if (st.boost) {
       // Aerodynamic forward lean: hands gripped low forward
       ctx.strokeStyle = '#2e1065';
@@ -2872,7 +3006,7 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // Menacing glowing eyes
+    // Menacing / Crying / Laughing glowing eyes
     if (st.stun) {
       // Stunned X eyes
       ctx.strokeStyle = '#fbbf24';
@@ -2885,6 +3019,50 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
         ctx.lineTo(cx + ox - 4, headY + 4);
         ctx.stroke();
       });
+    } else if (st.cry) {
+      // Sad squeezed crying eyes > <
+      ctx.strokeStyle = '#082f49';
+      ctx.lineWidth = 2.5;
+      // Left eye >
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, headY - 5);
+      ctx.lineTo(cx - 3, headY - 2);
+      ctx.lineTo(cx - 8, headY + 1);
+      ctx.stroke();
+      // Right eye <
+      ctx.beginPath();
+      ctx.moveTo(cx + 8, headY - 5);
+      ctx.lineTo(cx + 3, headY - 2);
+      ctx.lineTo(cx + 8, headY + 1);
+      ctx.stroke();
+
+      // Massive comic fountain tear streams shooting out
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.92)';
+      // Left stream
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, headY - 1);
+      ctx.quadraticCurveTo(cx - 24, headY + 10, cx - 32, headY + 40);
+      ctx.lineTo(cx - 20, headY + 42);
+      ctx.quadraticCurveTo(cx - 15, headY + 14, cx - 2, headY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right stream
+      ctx.beginPath();
+      ctx.moveTo(cx + 5, headY - 1);
+      ctx.quadraticCurveTo(cx + 24, headY + 10, cx + 32, headY + 40);
+      ctx.lineTo(cx + 20, headY + 42);
+      ctx.quadraticCurveTo(cx + 15, headY + 14, cx + 2, headY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Big teardrops
+      ctx.beginPath();
+      ctx.arc(cx - 32, headY + 46, 5, 0, Math.PI * 2);
+      ctx.arc(cx + 32, headY + 46, 5, 0, Math.PI * 2);
+      ctx.arc(cx - 40, headY + 56, 4, 0, Math.PI * 2);
+      ctx.arc(cx + 40, headY + 56, 4, 0, Math.PI * 2);
+      ctx.fill();
     } else {
       // Piercing glowing cyan eyes
       ctx.fillStyle = '#0f172a';
@@ -2903,13 +3081,30 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
 
     // Mouth / Smirk
     if (st.laugh) {
-      // Wide sinister laugh mouth
+      // Wide triumphant victory laugh mouth with teeth
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
-      ctx.arc(cx, headY + 8, 6, 0, Math.PI);
+      ctx.arc(cx, headY + 7, 7, 0, Math.PI);
       ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(cx - 4, headY + 8, 8, 2);
+      ctx.fillRect(cx - 5, headY + 7, 10, 3);
+      // Tongue
+      ctx.fillStyle = '#f43f5e';
+      ctx.beginPath();
+      ctx.arc(cx, headY + 12, 3.5, 0, Math.PI);
+      ctx.fill();
+    } else if (st.cry) {
+      // Wide downturned sobbing mouth
+      ctx.fillStyle = '#082f49';
+      ctx.beginPath();
+      ctx.arc(cx, headY + 14, 6, Math.PI, Math.PI * 2);
+      ctx.fill();
+      // Quivering lower lip
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, headY + 14, 7, Math.PI * 0.9, Math.PI * 2.1);
+      ctx.stroke();
     } else {
       // Subtle mocking smirk
       ctx.strokeStyle = '#082f49';
@@ -2918,6 +3113,20 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
       ctx.moveTo(cx - 4, headY + 8);
       ctx.quadraticCurveTo(cx + 2, headY + 11, cx + 6, headY + 7);
       ctx.stroke();
+    }
+
+    // Confetti / Gold sparks for victory celebration
+    if (st.laugh) {
+      ctx.fillStyle = '#facc15';
+      [
+        [cx - 35, headY - 25],
+        [cx + 35, headY - 25],
+        [cx - 45, headY - 5],
+        [cx + 45, headY - 5],
+        [cx, headY - 35],
+      ].forEach(([sx, sy]) => {
+        ctx.fillRect(sx - 3, sy - 3, 6, 6);
+      });
     }
 
     // Electrical sparks overlay when stunned
@@ -2946,7 +3155,7 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
   });
 
   // Slipstream wake streak texture
-  {
+  if (!scene.textures.exists('boss_slipstream_streak')) {
     const canvas = document.createElement('canvas');
     canvas.width = 120;
     canvas.height = 14;
@@ -2965,4 +3174,205 @@ function createFantomasBossTextures(scene: Phaser.Scene) {
     }
   }
 }
+
+function createRacingTrackTextures(scene: Phaser.Scene) {
+  // 1. RACING TRACK BOOST PAD (Glowing Neon Turbo Chevron)
+  if (!scene.textures.exists('track_boost_pad')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 130;
+    canvas.height = 20;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Glow base
+      const grad = ctx.createLinearGradient(0, 0, 130, 0);
+      grad.addColorStop(0, '#0284c7');
+      grad.addColorStop(0.5, '#06b6d4');
+      grad.addColorStop(1, '#38bdf8');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(4, 4, 122, 12, 6);
+      ctx.fill();
+
+      // Outer neon stroke
+      ctx.strokeStyle = '#67e8f9';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Glowing fast chevrons >>>
+      ctx.fillStyle = '#fef08a';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 8;
+      for (let x = 24; x <= 104; x += 22) {
+        ctx.beginPath();
+        ctx.moveTo(x - 8, 3);
+        ctx.lineTo(x + 4, 10);
+        ctx.lineTo(x - 8, 17);
+        ctx.lineTo(x - 3, 17);
+        ctx.lineTo(x + 9, 10);
+        ctx.lineTo(x - 3, 3);
+        ctx.closePath();
+        ctx.fill();
+      }
+      scene.textures.addCanvas('track_boost_pad', canvas);
+    }
+  }
+
+  // 2. RACING TRACK RED-AND-WHITE RUMBLE KERB
+  if (!scene.textures.exists('track_kerb')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 14;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const stripeWidth = 20;
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#ef4444' : '#ffffff';
+        ctx.fillRect(i * stripeWidth, 0, stripeWidth, 14);
+
+        // Subtle 3D beveled edge
+        ctx.fillStyle = i % 2 === 0 ? '#b91c1c' : '#cbd5e1';
+        ctx.fillRect(i * stripeWidth, 10, stripeWidth, 4);
+      }
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, 0, 120, 14);
+      scene.textures.addCanvas('track_kerb', canvas);
+    }
+  }
+
+  // 3. OVERHEAD RACING SPEED GANTRY / ARCH
+  if (!scene.textures.exists('track_speed_gantry')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 240;
+    canvas.height = 180;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Steel truss vertical posts
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(16, 40, 12, 140);
+      ctx.fillRect(212, 40, 12, 140);
+
+      // Truss cross braces
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2.5;
+      for (let y = 50; y < 170; y += 30) {
+        ctx.beginPath();
+        ctx.moveTo(16, y);
+        ctx.lineTo(28, y + 20);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(212, y);
+        ctx.lineTo(224, y + 20);
+        ctx.stroke();
+      }
+
+      // Overhead beam
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(10, 20, 220, 36);
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(10, 20, 220, 36);
+
+      // LED Screen Display
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(16, 24, 208, 28);
+
+      // Neon LED Text
+      ctx.font = 'bold 11px Montserrat, Rubik, sans-serif';
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 6;
+      ctx.fillText('⚡ DUEL SPEEDWAY • VOLTARZ vs SV ⚡', 120, 42);
+
+      // Signal lights (Green & Amber)
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(38 + i * 16, 12, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(154 + i * 16, 12, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      scene.textures.addCanvas('track_speed_gantry', canvas);
+    }
+  }
+
+  // 4. RACING TRACK GRANDSTAND & SPONSOR BANNER
+  if (!scene.textures.exists('track_banner')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 220;
+    canvas.height = 54;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Banner frame
+      const grad = ctx.createLinearGradient(0, 0, 220, 0);
+      grad.addColorStop(0, '#4c1d95');
+      grad.addColorStop(0.5, '#7c3aed');
+      grad.addColorStop(1, '#0e7490');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(4, 4, 212, 46, 8);
+      ctx.fill();
+
+      // Glowing border
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Tech details
+      ctx.font = 'bold 13px Montserrat, "Arial Black", sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#facc15';
+      ctx.shadowBlur = 8;
+      ctx.fillText('🏁 СЁМА vs ФАНТОМАС 🏁', 110, 25);
+
+      ctx.font = 'bold 10px Rubik, sans-serif';
+      ctx.fillStyle = '#67e8f9';
+      ctx.fillText('⚡ ТОЛЬКО СКОРОСТЬ! 150+ КМ/Ч ⚡', 110, 41);
+
+      scene.textures.addCanvas('track_banner', canvas);
+    }
+  }
+
+  // 5. RACING TRACK SAFETY BARRIER WITH LED STRIP
+  if (!scene.textures.exists('track_racing_barrier')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 160;
+    canvas.height = 36;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 8, 160, 28);
+
+      // Warning hazard stripes (Yellow / Black)
+      ctx.fillStyle = '#eab308';
+      for (let x = 0; x < 160; x += 30) {
+        ctx.beginPath();
+        ctx.moveTo(x, 14);
+        ctx.lineTo(x + 14, 14);
+        ctx.lineTo(x + 4, 34);
+        ctx.lineTo(x - 10, 34);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Neon LED line across the top edge
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, 8);
+      ctx.lineTo(160, 8);
+      ctx.stroke();
+
+      scene.textures.addCanvas('track_racing_barrier', canvas);
+    }
+  }
+}
+
 

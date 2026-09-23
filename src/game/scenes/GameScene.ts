@@ -19,7 +19,6 @@ export class GameScene extends Phaser.Scene {
 
   // Player & EUC
   private player!: Phaser.Physics.Arcade.Sprite;
-  private playerWheelLight!: Phaser.GameObjects.Arc;
   private headlightBeam!: Phaser.GameObjects.Polygon;
   private trailEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -136,6 +135,27 @@ export class GameScene extends Phaser.Scene {
   private sparkFrictionEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private sparkVoltEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
 
+  // Boss Fantomas on Monowheel SV (Duel Encounter)
+  private bossSprite: Phaser.Physics.Arcade.Sprite | null = null;
+  private trackBoostPads!: Phaser.Physics.Arcade.StaticGroup;
+  private bossDuelActive = false;
+  private bossDuelIntroPlaying = false;
+  private bossDistanceLead = 0;
+  private bossStunned = false;
+  private bossStunTimer = 0;
+  private bossSlipstreamActive = false;
+  private bossSlipstreamCharge = 0;
+  private bossIntroTriggerX = 0;
+  private bossIntroTriggered = false;
+  private bossBoostTimer = 0;
+  private bossTauntTimer = 0;
+  private bossBaseSpeed = 360;
+  private bossSlipstreamEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private bossHeadlightBeam: Phaser.GameObjects.Polygon | null = null;
+  private bossLetterboxTop: Phaser.GameObjects.Rectangle | null = null;
+  private bossLetterboxBottom: Phaser.GameObjects.Rectangle | null = null;
+  private bossDuelBannerContainer: Phaser.GameObjects.Container | null = null;
+
   constructor(
     levelConfig: LevelConfig,
     onStatsUpdate: (stats: PlayerStats) => void,
@@ -151,7 +171,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   public setInputState(input: InputState) {
-    if (this.isGameOver || this.isVictory) {
+    if (this.isGameOver || this.isVictory || this.bossDuelIntroPlaying) {
       this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
       this.isBoosting = false;
       this.jumpTriggered = false;
@@ -172,7 +192,7 @@ export class GameScene extends Phaser.Scene {
       this.jumpTriggered = true;
       if (this.player?.body) {
         const onGround = this.player.body.blocked.down || this.player.body.touching.down;
-        if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
+        if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout && !this.bossDuelIntroPlaying) {
           const body = this.player.body as Phaser.Physics.Arcade.Body;
           const maxSpeed = this.levelConfig.baseSpeed || 300;
           const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
@@ -221,6 +241,7 @@ export class GameScene extends Phaser.Scene {
     this.enemies = this.physics.add.group();
     this.drones = this.physics.add.group();
     this.poopProjectiles = this.physics.add.group();
+    this.trackBoostPads = this.physics.add.staticGroup();
 
     // 3. CREATE PLAYER SÉMA MUKHA-KHA FIRST (Must precede buildLevel and colliders)
     // Scaled to 0.72: compact, nimble, fits under all overhead bridges, signs, and arches!
@@ -247,10 +268,6 @@ export class GameScene extends Phaser.Scene {
     );
     this.headlightBeam.setScale(0.72);
     this.headlightBeam.setDepth(9);
-
-    // Wheel glow orb
-    this.playerWheelLight = this.add.circle(0, 0, 20, 0xf59e0b, 0.4);
-    this.playerWheelLight.setDepth(11);
 
     // Particle emitter for speed boost / wheel sparks
     const sparkGraphics = this.make.graphics({ x: 0, y: 0 }, false);
@@ -300,6 +317,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.chargingStations, this.handleUseChargingStation, undefined, this);
     this.physics.add.overlap(this.player, this.lightningPickups, this.handleCollectLightning, undefined, this);
     this.physics.add.overlap(this.player, this.checkpoints, this.handleActivateCheckpoint, undefined, this);
+    this.physics.add.overlap(this.player, this.trackBoostPads, this.handleBoostPadOverlap, undefined, this);
 
     // Hazards & Obstacles
     this.physics.add.overlap(this.player, this.obstacles, this.handleHitObstacle, undefined, this);
@@ -332,6 +350,7 @@ export class GameScene extends Phaser.Scene {
     // 9. DYNAMIC WEATHER & SPARK SYSTEMS INITIALIZATION
     this.setupWeatherSystem();
     this.setupSparkParticleSystem();
+    this.setupBossDuelSystem();
 
     // Sound initialization
     soundManager.startMotor();
@@ -621,13 +640,24 @@ export class GameScene extends Phaser.Scene {
     roadBed.fillRect(-200, groundY + 80, worldWidth + 800, 120);
     roadBed.setDepth(1);
 
-    // 3. POPULATE THE STREET WITH OBSTACLES, RAMPS, AND ELEVATED TRACKS
+    // 3. POPULATE THE STREET WITH OBSTACLES BEFORE DUEL, AND DEDICATED RACING TRACK DURING DUEL
+    this.bossIntroTriggerX = Math.max(2600, Math.floor(worldWidth * 0.62));
+    this.bossBaseSpeed = Math.round((this.levelConfig.baseSpeed || 300) * 1.05);
+
+    const duelTrackStartX = this.bossIntroTriggerX - 100;
+
+    // 3A. CITY SECTOR (WITH OBSTACLES, PEDESTRIANS, DRONES, PUZZLES) - ONLY BEFORE DUEL
     let segX = 520;
-    while (segX < worldWidth - 650) {
-      const segLen = Phaser.Math.Between(500, 850);
-      this.populateSegment(segX, segX + segLen, groundY, tileKey);
-      segX += segLen + Phaser.Math.Between(80, 160);
+    while (segX < duelTrackStartX - 100) {
+      const segLen = Phaser.Math.Between(480, 720);
+      const nextEnd = Math.min(segX + segLen, duelTrackStartX);
+      this.populateCitySegment(segX, nextEnd, groundY, tileKey);
+      segX = nextEnd + Phaser.Math.Between(80, 160);
     }
+
+    // 3B. DEDICATED HIGH-SPEED RACING TRACK FOR DUEL WITH FANTÔMAS
+    // No obstacles, no hazards, no drones, no pedestrians! Clean racing speedway with kerbs, speed arches, boost pads & batteries!
+    this.populateRacingTrackZone(duelTrackStartX, worldWidth - 550, groundY);
 
     // 4. FINAL STRETCH & FINISH (VOLTARZ MEETUP)
     const finishStartX = worldWidth - 550;
@@ -659,7 +689,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private populateSegment(startX: number, endX: number, groundY: number, groundTileKey: string) {
+  private populateCitySegment(startX: number, endX: number, groundY: number, groundTileKey: string) {
     // Checkpoint every ~700-900m
     if (startX > 400 && startX - this.lastCheckpointX > 750 && startX < this.levelConfig.length - 800) {
       const cp = this.checkpoints.create(startX + 80, groundY - 58, 'checkpoint_inactive');
@@ -859,6 +889,96 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Populates the dedicated High-Speed Racing Track Zone for the Duel with Fantomas:
+   * - ZERO obstacles (no benches, fallen scooters, cones, barrels, hazards, vents).
+   * - ZERO hazards (no puddles, no oil).
+   * - ZERO enemies (no taxis, no pedestrians, no scooter riders).
+   * - ZERO drones (no poop projectiles).
+   * - Red & white racing kerbs along the track surface.
+   * - Overhead LED speed arches and cheering sponsor banners.
+   * - Nitro speed boost pads on the road for acceleration bursts.
+   * - Continuous battery charging stations and VOLT energy arcs.
+   * - Clean high-speed racing speedway!
+   */
+  private populateRacingTrackZone(startX: number, endX: number, groundY: number) {
+    // 1. Checkpoint right before the racing track entrance
+    const cp = this.checkpoints.create(startX + 40, groundY - 58, 'checkpoint_inactive');
+    cp.refreshBody();
+
+    // 2. Red & White Racing Kerbs along the entire road surface of the racing track
+    for (let kx = startX - 40; kx < endX + 160; kx += 120) {
+      const kerb = this.add.image(kx + 60, groundY + 33, 'track_kerb');
+      kerb.setDepth(2);
+    }
+
+    // 3. Racing Track Background Safety Barriers with LED Glow
+    for (let bx = startX + 50; bx < endX; bx += 160) {
+      const barrier = this.add.image(bx, groundY - 14, 'track_racing_barrier');
+      barrier.setDepth(3);
+    }
+
+    // 4. Overhead Racing Speed Gantries & Sponsor / Cheering Banners
+    let archX = startX + 240;
+    while (archX < endX - 180) {
+      // Overhead LED Speed Arch
+      const gantry = this.add.image(archX, groundY - 105, 'track_speed_gantry');
+      gantry.setDepth(4);
+
+      // Sponsor banner in between
+      if (archX + 200 < endX - 100) {
+        const banner = this.add.image(archX + 200, groundY - 115, 'track_banner');
+        banner.setDepth(3);
+      }
+
+      archX += Phaser.Math.Between(440, 620);
+    }
+
+    // 5. Nitro Boost Pads (`track_boost_pad`) on the road surface
+    let padX = startX + 280;
+    while (padX < endX - 180) {
+      const pad = this.trackBoostPads.create(padX, groundY + 28, 'track_boost_pad');
+      pad.setDepth(3);
+      pad.refreshBody();
+
+      // VOLT Energy Tokens ahead of boost pad
+      for (let i = 0; i < 4; i++) {
+        this.voltTokens.create(padX + 65 + i * 40, groundY - 45, 'token_volt');
+      }
+
+      padX += Phaser.Math.Between(360, 520);
+    }
+
+    // 6. Charging Stations and Batteries for continuous high-speed EUC energy
+    let csX = startX + 480;
+    while (csX < endX - 220) {
+      const cs = this.chargingStations.create(csX, groundY - 60, 'station_charger');
+      cs.refreshBody();
+
+      // Battery pickups & Lightning
+      this.batteries.create(csX + 110, groundY - 45, 'item_battery');
+      this.lightningPickups.create(csX + 220, groundY - 50, 'item_super_lightning');
+
+      csX += Phaser.Math.Between(680, 920);
+    }
+
+    // 7. Kicker launch ramps on the track for super air overtakes
+    let rampX = startX + 440;
+    while (rampX < endX - 300) {
+      const ramp = this.ramps.create(rampX, groundY - 26, 'kicker_ramp');
+      ramp.refreshBody();
+
+      // High air VOLT arc above ramp
+      for (let i = 0; i < 5; i++) {
+        const vx = rampX + 45 + i * 35;
+        const vy = groundY - 85 - Math.sin((i / 4) * Math.PI) * 55;
+        this.voltTokens.create(vx, vy, 'token_volt');
+      }
+
+      rampX += Phaser.Math.Between(640, 880);
+    }
+  }
+
   public update(time: number, delta: number) {
     if (this.isGameOver || this.isVictory) {
       soundManager.stopMotor();
@@ -1006,6 +1126,18 @@ export class GameScene extends Phaser.Scene {
         poop.destroy();
       }
     });
+
+    // 3.2 BOSS FANTÔMAS ON MONOWHEEL SV DUEL TRIGGER & UPDATE
+    if (
+      !this.bossIntroTriggered &&
+      this.player.x >= this.bossIntroTriggerX &&
+      !this.isGameOver &&
+      !this.isVictory &&
+      !this.isCutout
+    ) {
+      this.triggerBossFantomasIntro();
+    }
+    this.updateBossDuel(time, delta);
 
     // 4. SUPER BOOST TIMER
     if (this.isSuperBoost) {
@@ -1560,6 +1692,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Emits bright tire/road friction sparks and metal embers
+   */
+  public emitFrictionSparks(x: number, y: number, count: number = 30) {
+    if (this.sparkFrictionEmitter) {
+      this.sparkFrictionEmitter.explode(count, x, y);
+    }
+    if (this.sparkImpactEmitter) {
+      this.sparkImpactEmitter.explode(Math.floor(count / 2), x, y);
+    }
+  }
+
+  /**
    * Spawns brilliant electrical spark arcs and golden starbursts when collecting VOLT energy
    */
   public emitVoltEnergySparks(x: number, y: number, isMega: boolean = false) {
@@ -1640,6 +1784,12 @@ export class GameScene extends Phaser.Scene {
       currentLevel: this.levelConfig.id,
       levelName: this.levelConfig.name,
       levelLength: this.levelConfig.length,
+      bossDuelActive: this.bossDuelActive,
+      bossName: 'ФАНТОМАС (SV)',
+      bossDistanceLead: this.bossDistanceLead,
+      bossStunned: this.bossStunned,
+      bossSlipstreamActive: this.bossSlipstreamActive,
+      bossSlipstreamCharge: Math.round(this.bossSlipstreamCharge),
     });
   }
 
@@ -1647,21 +1797,35 @@ export class GameScene extends Phaser.Scene {
     const onGround = this.player.body?.blocked.down || this.player.body?.touching.down;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
 
+    // 🛑 BOSS DUEL INTRO, COUNTDOWN, VICTORY OR GAMEOVER: Prevent movement or texture override
+    if (this.bossDuelIntroPlaying || this.isVictory || this.isGameOver) {
+      body.setVelocity(0, 0);
+      body.setAcceleration(0, 0);
+      this.isBoosting = false;
+      this.boostHoldDuration = 0;
+      this.jumpBufferTimer = 0;
+      this.jumpTriggered = false;
+      soundManager.updateTurbine(false, 0, false);
+      return;
+    }
+
     // Determine speed bounds based on level configuration:
     // Progressive speed from Level 1 (~44 km/h) up to Level 15 (~85 km/h cruising, ~146 km/h boost, ~150 km/h top limit)
     let maxSpeed: number;
     let accel: number;
 
-    if (this.isTiltback && !this.isSuperBoost) {
-      // Pedal lift / Tiltback: EUC protects itself and forces speed throttling ("еле едет")
-      if (this.battery <= 5) {
+    if ((this.isTiltback || this.battery <= 0) && !this.isSuperBoost) {
+      // Pedal lift / Tiltback: EUC protects itself and forces speed throttling ("еле едет задрав педали")
+      if (this.battery <= 0) {
+        maxSpeed = 38; // ~5.5 km/h (barely rolling crawl when completely out of battery)
+      } else if (this.battery <= 5) {
         maxSpeed = 48; // ~7 km/h (barely rolling)
       } else if (this.battery <= 15) {
         maxSpeed = 82; // ~12 km/h (slow limp)
       } else {
         maxSpeed = 125; // ~18 km/h (reduced speed)
       }
-      accel = onGround ? 220 : 130;
+      accel = onGround ? 180 : 110;
     } else {
       const baseSpeed = this.levelConfig.baseSpeed || 300;
       const normalBoost = this.levelConfig.boostSpeed || 680;
@@ -1673,12 +1837,12 @@ export class GameScene extends Phaser.Scene {
     const drag = onGround ? Math.round(780 + this.levelConfig.id * 10) : 250;
     body.setDragX(drag);
 
-    // Boost activation with 3-second cutout limit
-    if (this.inputState.boost && (this.battery > 0 || this.isSuperBoost)) {
-      if (this.isTiltback && !this.isSuperBoost) {
+    // Boost activation with 3-second cutout limit (Blocked when battery is 0!)
+    if (this.inputState.boost && this.battery > 0) {
+      if ((this.isTiltback || this.battery <= 0) && !this.isSuperBoost) {
         this.isBoosting = false;
         this.boostHoldDuration = 0;
-        // Boost disabled while pedals are lifted
+        // Boost disabled while pedals are lifted or no energy
       } else {
         if (!this.isBoosting) {
           this.isBoosting = true;
@@ -1809,16 +1973,24 @@ export class GameScene extends Phaser.Scene {
       body.setVelocityY(Math.max(body.velocity.y, 480)); // fast descent
     }
 
-    // ⚡ INSTANT JUMP EXECUTION: Leaps immediately when jump button is pressed (zero delay, no trajectory charging lag)
+    // ⚡ INSTANT JUMP EXECUTION: Leaps immediately when jump button is pressed
+    // Disabled when battery is 0! ("когда моноколесо разряжено оно не должно прыгать по кнопке прыжок")
     if (this.inputState.jump) {
       if (!this.jumpTriggered) {
         this.jumpTriggered = true;
-        this.jumpBufferTimer = 0.16; // 160ms jump buffer in case slightly airborne
-        if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
-          const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
-          const jumpImpulse = -630 - speedRatio * 110;
-          this.executeJump(jumpImpulse);
+        if (this.battery <= 0 && !this.isSuperBoost) {
+          // No electrical charge: unicycle cannot jump!
           this.jumpBufferTimer = 0;
+          soundManager.playTiltbackAlarm();
+          this.createFloatingText(this.player.x, this.player.y - 60, '⚡ НЕТ ЗАРЯДА ДЛЯ ПРЫЖКА!', '#ef4444');
+        } else {
+          this.jumpBufferTimer = 0.16; // 160ms jump buffer in case slightly airborne
+          if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
+            const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
+            const jumpImpulse = -630 - speedRatio * 110;
+            this.executeJump(jumpImpulse);
+            this.jumpBufferTimer = 0;
+          }
         }
       }
     } else {
@@ -1828,10 +2000,14 @@ export class GameScene extends Phaser.Scene {
     // Process buffered jump if player touched ground while buffer was active
     if (this.jumpBufferTimer > 0) {
       this.jumpBufferTimer -= delta / 1000;
-      if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
-        const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
-        const jumpImpulse = -630 - speedRatio * 110;
-        this.executeJump(jumpImpulse);
+      if (this.battery > 0 || this.isSuperBoost) {
+        if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout) {
+          const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
+          const jumpImpulse = -630 - speedRatio * 110;
+          this.executeJump(jumpImpulse);
+          this.jumpBufferTimer = 0;
+        }
+      } else {
         this.jumpBufferTimer = 0;
       }
     }
@@ -2021,6 +2197,33 @@ export class GameScene extends Phaser.Scene {
       this.triggerSpeech(RU.checkpointSaved);
       this.createFloatingText(cp.x, cp.y - 60, '⚡ СОХРАНЕНО + 100% ЗАРЯД', '#10b981');
     }
+  }
+
+  private handleBoostPadOverlap(playerObj: any, padObj: any) {
+    const pad = padObj as Phaser.Physics.Arcade.Sprite;
+    if (!pad || !pad.active) return;
+    const lastBoosted = pad.getData('lastBoosted') || 0;
+    const now = this.time.now;
+    if (now - lastBoosted < 600) return;
+    pad.setData('lastBoosted', now);
+
+    const pBody = this.player.body as Phaser.Physics.Arcade.Body;
+    if (pBody) {
+      pBody.setVelocityX(Math.max(pBody.velocity.x + 350, 920));
+    }
+
+    soundManager.playSuperBoost();
+    this.emitVoltEnergySparks(pad.x, pad.y - 10, true);
+    this.createFloatingText(pad.x, pad.y - 45, '⚡ NITRO ТРЕК-УСКОРИТЕЛЬ! ⚡', '#00f0ff');
+    this.score += 250;
+
+    // Pad bounce animation
+    this.tweens.add({
+      targets: pad,
+      scaleY: 1.35,
+      yoyo: true,
+      duration: 110,
+    });
   }
 
   private handleHitObstacle(playerObj: any, obstacleObj: any) {
@@ -2280,11 +2483,19 @@ export class GameScene extends Phaser.Scene {
     const p = this.player;
     const pBody = p.body as Phaser.Physics.Arcade.Body;
 
-    // Obstacle damage: shields loss!
+    // Obstacle damage: shields loss AND complete battery drain to 0%!
     this.shields--;
+    this.battery = 0; // Complete electricity depletion on poop hit
+    this.isTiltback = true;
+    this.isBoosting = false;
+    this.isSuperBoost = false;
+    this.boostHoldDuration = 0;
+    this.tiltbackBeepTimer = 0;
+    this.tiltbackSpeechTimer = 0;
     soundManager.playHit();
     soundManager.playPoopSplatSound();
-    this.cameras.main.shake(200, 0.018);
+    soundManager.playTiltbackAlarm();
+    this.cameras.main.shake(220, 0.022);
 
     // Speed loss and knockback from poop impact
     pBody.setVelocityX(pBody.velocity.x * 0.35);
@@ -2312,7 +2523,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Floating text on Sema
-    this.createFloatingText(p.x, p.y - 70, `💩 ${RU.hitPoopAlert || 'КАКАШКА С ДРОНА!'} -1 ЩИТ`, '#854d0e');
+    this.createFloatingText(p.x, p.y - 70, `💩 ${RU.hitPoopAlert || 'КАКАШКА С ДРОНА!'} ЗАРЯД 0%! -1 ЩИТ`, '#854d0e');
+    this.triggerSpeech('ЗАРЯД В НУЛЬ! ИЩИ ЗАРЯДКУ!');
 
     // 🌟 ДРОН СМЕЕТСЯ ХИ-ХИ ГОЛОСОМ СМЕШНОГО ГНОМА! 🌟
     soundManager.speakGnomeLaugh();
@@ -2549,7 +2761,11 @@ export class GameScene extends Phaser.Scene {
     // 1. Sema falls down ("Сёма прилёг")
     this.player.setTexture('sema_fall');
     const body = this.player.body as Phaser.Physics.Arcade.Body;
-    body.setVelocity(0, 0);
+    if (body) {
+      body.setVelocity(0, 0);
+      body.setAcceleration(0, 0);
+      body.setAllowGravity(false);
+    }
     this.player.setAngle(this.player.flipX ? 60 : -60);
 
     // 2. Floating text & speech
@@ -2568,9 +2784,13 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => shockwave.destroy(),
     });
 
-    // Fast, responsive 750ms transition to checkpoint dialog
-    this.gameOverTimer = this.time.delayedCall(750, () => {
+    // Fast, responsive 650ms transition to checkpoint dialog, pausing game physics completely
+    this.gameOverTimer = this.time.delayedCall(650, () => {
       this.gameOverTimer = null;
+      if (this.physics?.world) {
+        this.physics.pause();
+      }
+      this.pauseGame();
       this.onGameOver();
     });
   }
@@ -2626,8 +2846,32 @@ export class GameScene extends Phaser.Scene {
     this.isTiltback = false;
     this.tiltbackBeepTimer = 0;
     this.tiltbackSpeechTimer = 0;
+    this.bossDistanceLead = 0;
+
+    // Reset Boss Duel state if respawned before the boss encounter trigger
+    if (this.lastCheckpointX < this.bossIntroTriggerX) {
+      this.bossIntroTriggered = false;
+      this.bossDuelActive = false;
+      this.bossDuelIntroPlaying = false;
+      this.bossSlipstreamActive = false;
+      this.bossSlipstreamCharge = 0;
+      if (this.bossSprite) {
+        this.bossSprite.destroy();
+        this.bossSprite = null;
+      }
+      if (this.bossDuelBannerContainer) {
+        this.bossDuelBannerContainer.destroy();
+        this.bossDuelBannerContainer = null;
+      }
+    }
+
+    if (this.player.body) {
+      const pb = this.player.body as Phaser.Physics.Arcade.Body;
+      pb.setAllowGravity(true);
+      pb.setVelocity(0, 0);
+      pb.setAcceleration(0, 0);
+    }
     this.player.setPosition(this.lastCheckpointX, 540);
-    this.player.setVelocity(0, 0);
     this.player.setAngle(0);
     this.player.setAlpha(1);
     this.isCrouching = false;
@@ -2645,9 +2889,9 @@ export class GameScene extends Phaser.Scene {
     this.player.setSize(48, 120);
     this.player.setOffset(61, 105);
     this.player.setTexture('sema_normal');
-    if (this.playerWheelLight) {
-      this.playerWheelLight.setFillStyle(0x00ffff, 0.7);
-    }
+
+    // Resume scene & physics world
+    this.resumeGame();
 
     // 4. Snap camera directly to respawn location
     if (this.cameras?.main) {
@@ -2679,7 +2923,8 @@ export class GameScene extends Phaser.Scene {
 
   private handleFinish() {
     if (this.isVictory || this.isGameOver) return;
-    if (this.player.x < this.levelConfig.length - 600) return;
+    const finishArchX = this.levelConfig.length - 600;
+    if (this.player.x < finishArchX && (!this.bossDuelActive || !this.bossSprite || this.bossSprite.x < finishArchX)) return;
 
     this.isVictory = true;
     this.isInvulnerable = true;
@@ -2687,6 +2932,7 @@ export class GameScene extends Phaser.Scene {
     this.jumpHoldTimer = 0;
     this.clearJumpTrajectory();
     soundManager.stopMotor();
+    soundManager.stopTurbine();
 
     // Clean up any lingering timers
     if (this.skeletonTimer) {
@@ -2703,21 +2949,328 @@ export class GameScene extends Phaser.Scene {
     }
 
     soundManager.playTrickSuccess();
-    this.createFloatingText(this.player.x, this.player.y - 80, `🏁 УРОВЕНЬ ${this.levelConfig.id} ПРОЙДЕН! 🏁`, '#10b981');
-    this.triggerSpeech(`УРОВЕНЬ ${this.levelConfig.id} ПРОЙДЕН!`);
 
-    // Slow motion finish jump!
-    if (this.physics?.world) {
-      this.physics.world.timeScale = 0.5;
-    }
+    const isDuel = this.bossDuelActive && this.bossSprite && this.bossSprite.active;
 
-    this.victoryTimer = this.time.delayedCall(1200, () => {
-      if (this.physics?.world) {
-        this.physics.world.timeScale = 1.0;
+    if (isDuel && this.bossSprite) {
+      const boss = this.bossSprite;
+      const playerWon = this.player.x >= boss.x;
+      const worldWidth = this.levelConfig.length;
+      const stageCenterX = worldWidth - 360;
+
+      // 1. Stop camera following and center camera directly on the duel stage
+      if (this.cameras?.main) {
+        this.cameras.main.stopFollow();
+        const halfWidth = this.cameras.main.width / 2;
+        this.cameras.main.setScroll(stageCenterX - halfWidth, 0);
+        this.cameras.main.zoomTo(1.05, 500, 'Sine.easeInOut');
       }
-      this.victoryTimer = null;
-      this.onVictory();
-    });
+
+      // 2. Center finish arch cleanly behind both characters
+      if (this.finishArch) {
+        this.finishArch.setPosition(stageCenterX, 540 - 110);
+        this.finishArch.setDepth(5);
+      }
+
+      // 3. Stop physics velocity on Fantomas and position cleanly side-by-side
+      const bossBody = boss.body as Phaser.Physics.Arcade.Body | null;
+      if (bossBody) {
+        bossBody.setVelocity(0, 0);
+        bossBody.setAcceleration(0, 0);
+        bossBody.setAllowGravity(false);
+      }
+      boss.setX(stageCenterX + 65);
+      boss.setY(538);
+      boss.setFlipX(true); // Fantomas looks left towards Sema
+      boss.setDepth(20);
+      boss.setVisible(true);
+      boss.setAlpha(1);
+
+      // 4. Stop physics velocity on Sema and position next to Fantomas facing him
+      const pBody = this.player.body as Phaser.Physics.Arcade.Body | null;
+      if (pBody) {
+        pBody.setVelocity(0, 0);
+        pBody.setAcceleration(0, 0);
+        pBody.setAllowGravity(false);
+      }
+      this.player.setX(stageCenterX - 65);
+      this.player.setY(540);
+      this.player.setFlipX(false); // Sema looks right towards Fantomas
+      this.player.setAngle(0);
+      this.player.setDepth(20);
+      this.player.setVisible(true);
+      this.player.setAlpha(1);
+
+      if (playerWon) {
+        // --- 🏆 СЁМА ПОБЕДИЛ! СЁМА РАДУЕТСЯ, ФАНТОМАС СТОИТ И ПЛАЧЕТ НА ФИНИШЕ 🏆 ---
+        this.score += 25000;
+        this.player.setTexture('sema_win');
+        boss.setTexture('boss_fantomas_cry');
+
+        // 🌟 Сёма радостно подпрыгивает от победы!
+        this.tweens.add({
+          targets: this.player,
+          y: 520,
+          duration: 280,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+
+        // 🌟 Салют искр и конфетти победы вокруг Сёмы
+        this.time.addEvent({
+          delay: 200,
+          repeat: 50,
+          callback: () => {
+            if (!this.player.active) return;
+            for (let i = 0; i < 3; i++) {
+              const spark = this.add.rectangle(
+                this.player.x + Phaser.Math.Between(-32, 32),
+                this.player.y - 40 + Phaser.Math.Between(-18, 18),
+                Phaser.Math.Between(4, 7),
+                Phaser.Math.Between(4, 7),
+                Phaser.Math.RND.pick([0xfacc15, 0x10b981, 0x38bdf8, 0xffffff])
+              );
+              spark.setDepth(25);
+              this.tweens.add({
+                targets: spark,
+                y: spark.y - Phaser.Math.Between(30, 80),
+                x: spark.x + Phaser.Math.Between(-35, 35),
+                rotation: Math.PI * 2,
+                alpha: 0,
+                duration: 620,
+                ease: 'Cubic.easeOut',
+                onComplete: () => spark.destroy(),
+              });
+            }
+          },
+        });
+
+        // 😭 Фантомас всхлипывает от горя и поражения
+        this.tweens.add({
+          targets: boss,
+          y: 544,
+          duration: 260,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+
+        // 😭 Непрерывный поток слёз из глаз Фантомаса на 10 секунд
+        this.time.addEvent({
+          delay: 160,
+          repeat: 60,
+          callback: () => {
+            if (!boss.active) return;
+            for (let i = 0; i < 3; i++) {
+              const tear = this.add.circle(
+                boss.x + (i % 2 === 0 ? -12 : 12) + Phaser.Math.Between(-4, 4),
+                boss.y - 30,
+                Phaser.Math.Between(3, 5),
+                0x38bdf8,
+                0.9
+              );
+              tear.setDepth(25);
+              this.tweens.add({
+                targets: tear,
+                x: tear.x + (i % 2 === 0 ? -35 : 35) + Phaser.Math.Between(-15, 15),
+                y: boss.y + Phaser.Math.Between(15, 45),
+                alpha: 0,
+                scale: 0.3,
+                duration: 550,
+                ease: 'Quad.easeIn',
+                onComplete: () => tear.destroy(),
+              });
+            }
+          },
+        });
+
+        // Реплики радости Сёмы и рыданий Фантомаса
+        const duelVictoryDialogue = [
+          { boss: '«Ы-Ы-Ы! МОЙ SV ПРОИГРАЛ! КАК ЖЕ ТАК?! 😭»', sema: '«УРААА! Я ПОБЕДИЛ ФАНТОМАСА! 🏆»' },
+          { boss: '«НЕТ! МОЙ РЕКОРД СБИТ! Я ВТОРОЙ... Ы-Ы-Ы!»', sema: '«МОЙ ШИМ И МОТОР ВЫДЕРЖАЛИ! ⚡»' },
+          { boss: '«ПРОКЛЯТЫЙ СЁМА И ЕГО БУСТ ДО 150 КМ/Ч! 😭»', sema: '«МУХА-ХА! СЁМА — ЧЕМПИОН ГОРОДА! 🚀»' },
+          { boss: '«МОЁ МОНОКОЛЕСО... ОНО ЖЕ БЫЛО ЛУЧШИМ! 😭»', sema: '«СПАСИБО ЗА ГОНКУ, ФАНТОМАС! 🏁»' },
+        ];
+
+        duelVictoryDialogue.forEach((item, idx) => {
+          this.time.delayedCall(idx * 2400, () => {
+            if (boss.active && this.player.active) {
+              this.createSpeechBubble(boss.x, boss.y - 95, item.boss);
+              soundManager.playBossCry();
+              soundManager.speakBossCry(item.boss.replace(/[«»]/g, ''));
+
+              this.time.delayedCall(700, () => {
+                if (this.player.active) {
+                  this.createSpeechBubble(this.player.x, this.player.y - 95, item.sema);
+                }
+              });
+            }
+          });
+        });
+
+        this.createFloatingText(this.player.x, this.player.y - 120, '🏆 СЁМА ПРАЗДНУЕТ ПОБЕДУ! ФАНТОМАС РЫДАЕТ! +25 000 🏆', '#fbbf24');
+        this.triggerSpeech('МУХА-ХА! ПОБЕДА НАД ФАНТОМАСОМ!');
+      } else {
+        // --- 😈 ФАНТОМАС ВЫИГРАЛ! ФАНТОМАС СТОИТ И РАДУЕТСЯ, СЁМА ПЛАЧЕТ НА ФИНИШЕ 😈 ---
+        this.player.setTexture('sema_lose');
+        boss.setTexture('boss_fantomas_laugh');
+
+        // 🌟 Фантомас радостно подпрыгивает от триумфа
+        this.tweens.add({
+          targets: boss,
+          y: 520,
+          duration: 300,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+
+        // 🌟 Золотое конфетти и искры вокруг Фантомаса
+        this.time.addEvent({
+          delay: 180,
+          repeat: 55,
+          callback: () => {
+            if (!boss.active) return;
+            for (let i = 0; i < 4; i++) {
+              const spark = this.add.rectangle(
+                boss.x + Phaser.Math.Between(-35, 35),
+                boss.y - 45 + Phaser.Math.Between(-20, 20),
+                Phaser.Math.Between(4, 8),
+                Phaser.Math.Between(4, 8),
+                Phaser.Math.RND.pick([0xfacc15, 0xa855f7, 0x38bdf8, 0xec4899])
+              );
+              spark.setDepth(25);
+              this.tweens.add({
+                targets: spark,
+                y: spark.y - Phaser.Math.Between(30, 80),
+                x: spark.x + Phaser.Math.Between(-40, 40),
+                rotation: Math.PI * 2,
+                alpha: 0,
+                duration: 650,
+                ease: 'Cubic.easeOut',
+                onComplete: () => spark.destroy(),
+              });
+            }
+          },
+        });
+
+        // 😭 Сёма поник и всхлипывает от поражения
+        this.tweens.add({
+          targets: this.player,
+          y: 545,
+          duration: 250,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+
+        // 😭 Струи слёз текут из-под шлема Сёмы на протяжении 10 секунд
+        this.time.addEvent({
+          delay: 160,
+          repeat: 60,
+          callback: () => {
+            if (!this.player.active) return;
+            for (let i = 0; i < 3; i++) {
+              const tear = this.add.circle(
+                this.player.x + (i % 2 === 0 ? -10 : 10) + Phaser.Math.Between(-3, 3),
+                this.player.y - 28,
+                Phaser.Math.Between(3, 5),
+                0x38bdf8,
+                0.95
+              );
+              tear.setDepth(25);
+              this.tweens.add({
+                targets: tear,
+                x: this.player.x + (i % 2 === 0 ? -30 : 30) + Phaser.Math.Between(-12, 12),
+                y: this.player.y + Phaser.Math.Between(15, 45),
+                alpha: 0,
+                scale: 0.3,
+                duration: 550,
+                ease: 'Quad.easeIn',
+                onComplete: () => tear.destroy(),
+              });
+            }
+          },
+        });
+
+        // Реплики смеха Фантомаса и слёз Сёмы
+        const duelDefeatDialogue = [
+          { boss: '«ХА-ХА-ХА! Я ПОБЕДИЛ! МОНОКОЛЕСО SV НЕПОБЕДИМО! 🏆»', sema: '«Ы-Ы-Ы! Я ПРОИГРАЛ ДУЭЛЬ ФАНТОМАСУ! 😭»' },
+          { boss: '«СЁМА, ТВОЙ ШИМ СГОРЕЛ! ПОПРОБУЙ ЕЩЁ РАЗ! 😈»', sema: '«КАК ЖЕ ТАК?! МОЁ КОЛЕСО ЧУТЬ-ЧУТЬ ОТСТАЛО! 😭»' },
+          { boss: '«ФАНТОМАС — КОРОЛЬ СКОРОСТИ! ХА-ХА-ХА!»', sema: '«Ы-Ы-Ы! МОЙ МОТОР НЕ ВЫДЕРЖАЛ... 😭»' },
+          { boss: '«ХА-ХА-ХА! СВ — НОМЕР ОДИН НАВСЕГДА!»', sema: '«В СЛЕДУЮЩИЙ РАЗ Я ВОЗЬМУ РЕВАНШ! 💔»' },
+        ];
+
+        duelDefeatDialogue.forEach((item, idx) => {
+          this.time.delayedCall(idx * 2400, () => {
+            if (boss.active && this.player.active) {
+              this.createSpeechBubble(boss.x, boss.y - 95, item.boss);
+              soundManager.playBossLaugh();
+              soundManager.speakBossWin(item.boss.replace(/[«»]/g, ''));
+
+              this.time.delayedCall(700, () => {
+                if (this.player.active) {
+                  this.createSpeechBubble(this.player.x, this.player.y - 95, item.sema);
+                  soundManager.playBossCry();
+                }
+              });
+            }
+          });
+        });
+
+        this.createFloatingText(this.player.x, this.player.y - 120, '🏁 ФАНТОМАС ПРАЗДНУЕТ ПОБЕДУ, СЁМА РЫДАЕТ! 🏁', '#f43f5e');
+        this.triggerSpeech('ФАНТОМАС ПРИШЁЛ ПЕРВЫМ!');
+      }
+
+      // 🌟 10-SECOND FINISH COUNTDOWN OVERLAY (FULL 10 SECONDS TO EXAMINE ANIMATIONS) 🌟
+      const finishCountdownText = this.add.text(225, 95, '⏱️ ФИНИШ ДУЭЛИ: 10 сек', {
+        fontFamily: 'Montserrat, Rubik, sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: playerWon ? '#facc15' : '#f43f5e',
+        stroke: '#09090b',
+        strokeThickness: 4,
+        backgroundColor: 'rgba(9, 9, 11, 0.85)',
+        padding: { x: 14, y: 6 },
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(38);
+
+      let remainingSec = 10;
+      this.time.addEvent({
+        delay: 1000,
+        repeat: 9,
+        callback: () => {
+          remainingSec--;
+          if (finishCountdownText.active) {
+            finishCountdownText.setText(`⏱️ ФИНИШ ДУЭЛИ: ${remainingSec} сек`);
+          }
+        },
+      });
+
+      // EXACTLY 10 SECONDS (10000ms) before opening victory dialog!
+      this.victoryTimer = this.time.delayedCall(10000, () => {
+        if (finishCountdownText.active) finishCountdownText.destroy();
+        this.victoryTimer = null;
+        this.onVictory();
+      });
+
+    } else {
+      // Standard level finish (1.4s)
+      this.createFloatingText(this.player.x, this.player.y - 80, `🏁 УРОВЕНЬ ${this.levelConfig.id} ПРОЙДЕН! 🏁`, '#10b981');
+      this.triggerSpeech(`УРОВЕНЬ ${this.levelConfig.id} ПРОЙДЕН!`);
+
+      if (this.physics?.world) {
+        this.physics.world.timeScale = 0.5;
+      }
+
+      this.victoryTimer = this.time.delayedCall(1400, () => {
+        if (this.physics?.world) {
+          this.physics.world.timeScale = 1.0;
+        }
+        this.victoryTimer = null;
+        this.onVictory();
+      });
+    }
   }
 
   private updateLightsAndEffects() {
@@ -2730,22 +3283,6 @@ export class GameScene extends Phaser.Scene {
     const lightY = this.isCrouching ? bodyY + 54 : bodyY + 48;
     this.headlightBeam.setPosition(bodyX + lightOffset, lightY);
     this.headlightBeam.setScale((isFlip ? -1 : 1) * 0.72, 0.72);
-
-    // Wheel glow position
-    this.playerWheelLight.setPosition(bodyX, bodyY + 52);
-    this.playerWheelLight.setScale(0.72);
-    const wheelGlowColor = this.isOverspeed
-      ? 0xef4444 // Intense red warning glow when exceeding 10 km/h!
-      : this.isSuperBoost
-      ? 0xfbbf24
-      : this.isBoosting
-      ? 0x38bdf8
-      : 0xf59e0b;
-
-    this.playerWheelLight.setFillStyle(
-      wheelGlowColor,
-      this.isOverspeed ? 0.75 : this.isBoosting ? 0.7 : 0.35
-    );
 
     // Boost particle trail
     if (this.isBoosting || this.isSuperBoost) {
@@ -2886,6 +3423,7 @@ export class GameScene extends Phaser.Scene {
 
   private executeJump(jumpImpulse: number) {
     if (!this.player?.body || this.isGameOver || this.isVictory || this.isCutout) return;
+    if (this.battery <= 0 && !this.isSuperBoost) return;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setVelocityY(jumpImpulse);
     soundManager.playJump();
@@ -3285,17 +3823,24 @@ export class GameScene extends Phaser.Scene {
   public pauseGame() {
     if (this.isSceneReady && this.scene && typeof this.scene.pause === 'function') {
       try {
+        if (this.physics?.world) {
+          this.physics.pause();
+        }
         this.scene.pause();
       } catch {
         // Ignore errors if scene is transitioning or destroyed
       }
     }
     soundManager.stopMotor();
+    soundManager.stopTurbine();
   }
 
   public resumeGame() {
     if (this.isSceneReady && this.scene && typeof this.scene.resume === 'function') {
       try {
+        if (this.physics?.world) {
+          this.physics.resume();
+        }
         this.scene.resume();
       } catch {
         // Ignore errors if scene is transitioning or destroyed
@@ -3322,5 +3867,517 @@ export class GameScene extends Phaser.Scene {
       this.physics.world.timeScale = 1.0;
     }
     soundManager.stopAll();
+  }
+
+  // =========================================================================
+  // 🌟 BOSS FANTÔMAS ON MONOWHEEL SV (DUEL SYSTEM & CINEMATIC SPAWN INTRO)
+  // =========================================================================
+
+  private setupBossDuelSystem() {
+    // 1. Cinematic Letterbox Bars
+    this.bossLetterboxTop = this.add.rectangle(225, -50, 450, 70, 0x000000, 0.94);
+    this.bossLetterboxTop.setScrollFactor(0);
+    this.bossLetterboxTop.setDepth(34);
+
+    this.bossLetterboxBottom = this.add.rectangle(225, 850, 450, 70, 0x000000, 0.94);
+    this.bossLetterboxBottom.setScrollFactor(0);
+    this.bossLetterboxBottom.setDepth(34);
+
+    // 2. Slipstream trail emitter behind Fantomas's SV
+    this.bossSlipstreamEmitter = this.add.particles(0, 0, 'boss_slipstream_streak', {
+      speed: { min: 40, max: 140 },
+      angle: { min: 170, max: 190 },
+      scale: { start: 0.85, end: 0.1 },
+      alpha: { start: 0.8, end: 0 },
+      lifespan: 420,
+      blendMode: Phaser.BlendModes.ADD,
+      emitting: false,
+    });
+    this.bossSlipstreamEmitter.setDepth(11);
+  }
+
+  /**
+   * Triggers the dramatic cinematic spawn sequence for Boss Fantomas on Monowheel SV:
+   * - Dramatic purple lightning and screen shake
+   * - Letterbox bars slide in
+   * - Unique cinematic audio effect (deep sub-bass, cyber brass chord, tire screech, evil laugh)
+   * - Fantomas rockets in at 150 km/h on his SV unicycle with purple nitro flames
+   * - Hard powerslide / skid stop throwing sparks
+   * - Pop-up Banner: «ДУЭЛЬ С ФАНТОМАСОМ»
+   * - Dialogue bubbles and 3-2-1 countdown into full duel gameplay!
+   */
+  public triggerBossFantomasIntro() {
+    if (this.bossIntroTriggered || this.isGameOver || this.isVictory) return;
+    this.bossIntroTriggered = true;
+    this.bossDuelIntroPlaying = true;
+
+    // 0. STOP & BRAKE SÉMA TO A HALT AT THE STARTING LINE
+    this.isBoosting = false;
+    this.boostHoldDuration = 0;
+    this.jumpBufferTimer = 0;
+    this.jumpTriggered = false;
+    this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
+    soundManager.updateTurbine(false, 0, false);
+    if (this.player?.body) {
+      const pb = this.player.body as Phaser.Physics.Arcade.Body;
+      pb.setVelocityX(0);
+      pb.setAccelerationX(0);
+    }
+    this.player.setTexture('sema_normal');
+    this.player.setAngle(0);
+
+    // 1. SOUND & DRAMATIC AUDIO
+    soundManager.playBossIntro();
+
+    // 2. PURGE ANY OBSTACLES/HAZARDS/ENEMIES/DRONES IN RACING SECTOR TO ENSURE 100% CLEAN RACETRACK
+    const cleanMinX = this.bossIntroTriggerX - 300;
+    this.obstacles.getChildren().forEach((child) => {
+      const obj = child as Phaser.GameObjects.GameObject & { x?: number };
+      if (obj.x && obj.x >= cleanMinX) {
+        obj.destroy();
+      }
+    });
+    this.enemies.getChildren().forEach((child) => {
+      const obj = child as Phaser.GameObjects.GameObject & { x?: number };
+      if (obj.x && obj.x >= cleanMinX) {
+        obj.destroy();
+      }
+    });
+    this.drones.getChildren().forEach((child) => {
+      const obj = child as Phaser.GameObjects.GameObject & { x?: number };
+      if (obj.x && obj.x >= cleanMinX) {
+        obj.destroy();
+      }
+    });
+    this.puddles.getChildren().forEach((child) => {
+      const obj = child as Phaser.GameObjects.GameObject & { x?: number };
+      if (obj.x && obj.x >= cleanMinX) {
+        obj.destroy();
+      }
+    });
+    this.poopProjectiles.getChildren().forEach((child) => {
+      const obj = child as Phaser.GameObjects.GameObject & { x?: number };
+      if (obj.x && obj.x >= cleanMinX) {
+        obj.destroy();
+      }
+    });
+
+    // 3. ATMOSPHERIC LIGHTNING & SHAKE
+    this.cameras.main.flash(500, 147, 51, 234); // Deep purple neon flash
+    this.cameras.main.shake(600, 0.016);
+
+    // 3. CINEMATIC LETTERBOX BARS
+    if (this.bossLetterboxTop && this.bossLetterboxBottom) {
+      this.tweens.add({
+        targets: this.bossLetterboxTop,
+        y: 35,
+        duration: 400,
+        ease: 'Cubic.easeOut',
+      });
+      this.tweens.add({
+        targets: this.bossLetterboxBottom,
+        y: 765,
+        duration: 400,
+        ease: 'Cubic.easeOut',
+      });
+    }
+
+    // 4. SPAWN FANTOMAS ON MONOWHEEL SV (ROCKETS IN FROM RIGHT)
+    const spawnX = this.cameras.main.scrollX + 680;
+    const targetX = this.player.x + 190;
+    const roadY = 538;
+
+    if (!this.bossSprite) {
+      this.bossSprite = this.physics.add.sprite(spawnX, roadY, 'boss_fantomas_boost');
+      this.bossSprite.setScale(0.74);
+      this.bossSprite.setDepth(14);
+      if (this.bossSprite.body) {
+        const bb = this.bossSprite.body as Phaser.Physics.Arcade.Body;
+        bb.setAllowGravity(false);
+        bb.setSize(48, 120);
+        bb.setOffset(61, 105);
+      }
+    } else {
+      this.bossSprite.setPosition(spawnX, roadY);
+      this.bossSprite.setTexture('boss_fantomas_boost');
+      this.bossSprite.setVisible(true);
+      this.bossSprite.setActive(true);
+    }
+
+    // High-speed nitro zoom in with tire friction smoke
+    this.tweens.add({
+      targets: this.bossSprite,
+      x: targetX,
+      duration: 1100,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => {
+        if (this.bossSprite && this.sparkFrictionEmitter) {
+          this.sparkFrictionEmitter.explode(4, this.bossSprite.x - 30, roadY + 36);
+        }
+      },
+      onComplete: () => {
+        if (!this.bossSprite) return;
+        // Hard powerslide / brake stop
+        this.bossSprite.setTexture('boss_fantomas_laugh');
+        soundManager.playBossLaugh();
+        this.emitFrictionSparks(this.bossSprite.x, roadY + 36, 45);
+        this.createFloatingText(this.bossSprite.x, roadY - 70, '⚡ ФАНТОМАС НА SV! ⚡', '#06b6d4');
+
+        // Speech bubble from Fantomas
+        this.createSpeechBubble(
+          this.bossSprite.x,
+          roadY - 110,
+          '«ХА-ХА-ХА! СЁМА, ТВОЙ ШИМ НА ПРЕДЕЛЕ!\nДУЭЛЬ НА SV НАЧИНАЕТСЯ!»'
+        );
+      },
+    });
+
+    // 5. POP-UP BANNER «ДУЭЛЬ С ФАНТОМАСОМ»
+    this.time.delayedCall(500, () => {
+      this.showBossDuelBanner();
+    });
+
+    // 6. SEMA'S RESPONSE & COUNTDOWN SEQUENCE
+    this.time.delayedCall(1900, () => {
+      this.createSpeechBubble(this.player.x, this.player.y - 110, '«МУХА-ХА! СВ НЕ ПОМОЖЕТ,\nПОГНАЛИ!»');
+    });
+
+    // Countdown: 3... 2... 1... GO!
+    const countdownSteps = [
+      { delay: 2400, num: 3, text: '3' },
+      { delay: 3000, num: 2, text: '2' },
+      { delay: 3600, num: 1, text: '1' },
+      { delay: 4200, num: 0, text: 'ПОГНАЛИ! 🚀' },
+    ];
+
+    countdownSteps.forEach((step) => {
+      this.time.delayedCall(step.delay, () => {
+        soundManager.playBossCountdown(step.num);
+        this.showCountdownOverlay(step.text, step.num === 0);
+
+        if (step.num === 0) {
+          // START DUEL
+          this.bossDuelIntroPlaying = false;
+          this.bossDuelActive = true;
+          this.bossBoostTimer = 2.5;
+
+          if (this.bossSprite) {
+            this.bossSprite.setTexture('boss_fantomas');
+            if (this.bossSprite.body) {
+              const bb = this.bossSprite.body as Phaser.Physics.Arcade.Body;
+              bb.setVelocityX(this.bossBaseSpeed);
+            }
+          }
+
+          // Launch player forward with immediate race start acceleration!
+          if (this.player.body) {
+            const pb = this.player.body as Phaser.Physics.Arcade.Body;
+            pb.setVelocityX(this.levelConfig.baseSpeed || 320);
+          }
+          this.createFloatingText(this.player.x, this.player.y - 55, '🚀 СТАРТ! ПОГНАЛИ!', '#22c55e');
+
+          // Retract letterbox bars
+          if (this.bossLetterboxTop && this.bossLetterboxBottom) {
+            this.tweens.add({
+              targets: this.bossLetterboxTop,
+              y: -50,
+              duration: 350,
+              ease: 'Cubic.easeIn',
+            });
+            this.tweens.add({
+              targets: this.bossLetterboxBottom,
+              y: 850,
+              duration: 350,
+              ease: 'Cubic.easeIn',
+            });
+          }
+
+          // Hide banner
+          if (this.bossDuelBannerContainer) {
+            this.tweens.add({
+              targets: this.bossDuelBannerContainer,
+              y: this.bossDuelBannerContainer.y - 60,
+              alpha: 0,
+              scale: 0.8,
+              duration: 300,
+              ease: 'Back.easeIn',
+              onComplete: () => {
+                if (this.bossDuelBannerContainer) {
+                  this.bossDuelBannerContainer.destroy();
+                  this.bossDuelBannerContainer = null;
+                }
+              },
+            });
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Displays the popup banner «ДУЭЛЬ С ФАНТОМАСОМ» with cyberpunk neon frame and badges.
+   */
+  private showBossDuelBanner() {
+    if (this.bossDuelBannerContainer) {
+      this.bossDuelBannerContainer.destroy();
+    }
+
+    const centerX = 225;
+    const centerY = 190;
+
+    const container = this.add.container(centerX, centerY);
+    container.setScrollFactor(0);
+    container.setDepth(36);
+    container.setScale(0.2);
+    container.setAlpha(0);
+
+    const bgG = this.add.graphics();
+
+    // Dark cyber-glass background
+    bgG.fillStyle(0x09090b, 0.94);
+    bgG.fillRoundedRect(-195, -72, 390, 144, 16);
+
+    // Glowing double neon border (purple & crimson)
+    bgG.lineStyle(3, 0xa855f7, 0.95);
+    bgG.strokeRoundedRect(-195, -72, 390, 144, 16);
+    bgG.lineStyle(1.5, 0xf43f5e, 0.85);
+    bgG.strokeRoundedRect(-191, -68, 382, 136, 14);
+
+    // Tech corner notches
+    bgG.fillStyle(0x38bdf8, 1);
+    bgG.fillRect(-193, -70, 14, 4);
+    bgG.fillRect(-193, -70, 4, 14);
+    bgG.fillRect(179, -70, 14, 4);
+    bgG.fillRect(189, -70, 4, 14);
+    bgG.fillRect(-193, 66, 14, 4);
+    bgG.fillRect(-193, 56, 4, 14);
+    bgG.fillRect(179, 66, 14, 4);
+    bgG.fillRect(189, 56, 4, 14);
+
+    container.add(bgG);
+
+    // Top Pill: «⚡ БОСС: МОНОКОЛЕСО SV (150 КМ/Ч) ⚡»
+    const topBadge = this.add.text(0, -48, '⚡ БОСС: МОНОКОЛЕСО SV (150 КМ/Ч) ⚡', {
+      fontFamily: 'Montserrat, Rubik, sans-serif',
+      fontSize: '11px',
+      fontStyle: 'bold',
+      color: '#facc15',
+    }).setOrigin(0.5);
+    container.add(topBadge);
+
+    // Main Title: «ДУЭЛЬ С ФАНТОМАСОМ»
+    const titleText = this.add.text(0, -15, 'ДУЭЛЬ С ФАНТОМАСОМ', {
+      fontFamily: 'Montserrat, "Arial Black", Rubik, sans-serif',
+      fontSize: '24px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      stroke: '#e11d48',
+      strokeThickness: 5,
+      shadow: {
+        offsetX: 0,
+        offsetY: 4,
+        color: '#a855f7',
+        blur: 14,
+        stroke: true,
+        fill: true,
+      },
+    }).setOrigin(0.5);
+    container.add(titleText);
+
+    // Subtitle: «ДЕРЖИСЬ В СЛИПСТРИМЕ ДЛЯ РЫВКА И ОБГОНИ ЕГО!»
+    const subText = this.add.text(0, 22, 'ДЕРЖИСЬ В СЛИПСТРИМЕ ДЛЯ РЫВКА И ОБГОНИ ЕГО!', {
+      fontFamily: 'Rubik, sans-serif',
+      fontSize: '10px',
+      fontStyle: 'bold',
+      color: '#38bdf8',
+      align: 'center',
+    }).setOrigin(0.5);
+    container.add(subText);
+
+    // Bottom info chips
+    const chipText = this.add.text(0, 44, '🏆 НАГРАДА: +25 000 ОЧКОВ ЗА ПОБЕДУ!', {
+      fontFamily: 'Rubik, sans-serif',
+      fontSize: '10px',
+      fontStyle: 'bold',
+      color: '#4ade80',
+    }).setOrigin(0.5);
+    container.add(chipText);
+
+    this.bossDuelBannerContainer = container;
+
+    // Pop-in bounce tween
+    this.tweens.add({
+      targets: container,
+      scale: 1.0,
+      alpha: 1,
+      duration: 450,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  private showCountdownOverlay(text: string, isGo: boolean = false) {
+    const cdText = this.add.text(225, 340, text, {
+      fontFamily: 'Montserrat, "Arial Black", Rubik, sans-serif',
+      fontSize: isGo ? '36px' : '48px',
+      fontStyle: 'bold',
+      color: isGo ? '#4ade80' : '#fbbf24',
+      stroke: '#000000',
+      strokeThickness: 6,
+      shadow: {
+        offsetX: 0,
+        offsetY: 3,
+        color: isGo ? '#22c55e' : '#f59e0b',
+        blur: 12,
+        fill: true,
+      },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(37);
+
+    this.tweens.add({
+      targets: cdText,
+      scale: 1.4,
+      alpha: 0,
+      duration: isGo ? 800 : 550,
+      ease: 'Quad.easeOut',
+      onComplete: () => cdText.destroy(),
+    });
+  }
+
+  /**
+   * Updates Boss Fantomas racing physics, SV turbo boosts, Slipstream zone, and taunts.
+   */
+  private updateBossDuel(time: number, delta: number) {
+    if (!this.bossSprite || !this.bossSprite.active) return;
+    const boss = this.bossSprite;
+    const body = boss.body as Phaser.Physics.Arcade.Body | null;
+    if (!body) return;
+
+    // Keep Fantomas grounded on the road
+    boss.setY(538);
+    body.setVelocityY(0);
+
+    // If intro is still playing or game is ended, keep boss in staging position
+    if (this.bossDuelIntroPlaying || this.isVictory || this.isGameOver) {
+      return;
+    }
+
+    if (!this.bossDuelActive) return;
+
+    // 1. Calculate relative distance lead (in meters)
+    this.bossDistanceLead = Math.round((this.player.x - boss.x) / 10);
+
+    // 2. Dynamic Speed & Rubber-banding AI
+    const playerSpeed = Math.abs(this.player.body ? this.player.body.velocity.x : 0);
+    let targetSpeed = this.bossBaseSpeed;
+
+    if (this.bossStunned) {
+      this.bossStunTimer -= delta / 1000;
+      targetSpeed = 60;
+      if (this.bossStunTimer <= 0) {
+        this.bossStunned = false;
+        boss.setTexture('boss_fantomas');
+      }
+    } else {
+      // Rubber banding: Fantomas speeds up if falling behind, stays competitive when ahead
+      const distanceDiff = boss.x - this.player.x;
+      if (distanceDiff < -140) {
+        // Player ahead: Fantomas gives turbo chase!
+        targetSpeed = Math.max(playerSpeed * 1.15, this.bossBaseSpeed * 1.25);
+      } else if (distanceDiff > 280) {
+        // Fantomas too far ahead: slight cruise deceleration
+        targetSpeed = Math.max(playerSpeed * 0.95, this.bossBaseSpeed * 0.85);
+      } else {
+        targetSpeed = Math.max(playerSpeed * 1.02, this.bossBaseSpeed);
+      }
+
+      // Periodic SV Super-Boost Surge (every 4-6 seconds)
+      this.bossBoostTimer -= delta / 1000;
+      if (this.bossBoostTimer <= 0) {
+        this.bossBoostTimer = Phaser.Math.Between(4, 7);
+        targetSpeed *= 1.45;
+        boss.setTexture('boss_fantomas_boost');
+
+        if (this.sparkFrictionEmitter) {
+          this.sparkFrictionEmitter.explode(18, boss.x - 30, boss.y + 36);
+        }
+
+        // Return to normal texture after 1.8s
+        this.time.delayedCall(1800, () => {
+          if (boss.active && !this.bossStunned && !this.isGameOver) {
+            boss.setTexture('boss_fantomas');
+          }
+        });
+      }
+    }
+
+    // Apply smooth acceleration to body
+    const currentSpeed = body.velocity.x;
+    const accelStep = (targetSpeed - currentSpeed) * Math.min(1, (delta / 1000) * 4);
+    body.setVelocityX(currentSpeed + accelStep);
+
+    // 3. Slipstream Drafting Zone:
+    // When Sema rides directly behind Fantomas's SV unicycle (distance 50px to 220px, similar Y)
+    const dx = boss.x - this.player.x;
+    const dy = Math.abs(boss.y - this.player.y);
+    const inSlipstream = dx >= 45 && dx <= 230 && dy < 50;
+
+    if (inSlipstream && !this.isGameOver && !this.isVictory) {
+      this.bossSlipstreamActive = true;
+      this.bossSlipstreamCharge = Math.min(100, this.bossSlipstreamCharge + (delta / 1000) * 55);
+
+      // Emit slipstream wake particles
+      if (this.bossSlipstreamEmitter) {
+        this.bossSlipstreamEmitter.emitParticleAt(boss.x - 40, boss.y + 20, 2);
+      }
+
+      // Slingshot Turbo Boost Trigger!
+      if (this.bossSlipstreamCharge >= 100) {
+        this.bossSlipstreamCharge = 0;
+        soundManager.playBossSlipstreamBoost();
+        this.createFloatingText(this.player.x, this.player.y - 70, '🚀 СЛИПСТРИМ РЫВОК! 145+ КМ/Ч!', '#00f0ff');
+        this.triggerSpeech('СЛИПСТРИМ! ОБГОНЯЮ!');
+
+        const pBody = this.player.body as Phaser.Physics.Arcade.Body;
+        if (pBody) {
+          pBody.setVelocityX(Math.max(pBody.velocity.x, 960));
+        }
+
+        this.triggerBoostDistortion(true);
+        this.emitVoltEnergySparks(this.player.x, this.player.y + 20, true);
+      }
+    } else {
+      this.bossSlipstreamActive = false;
+      this.bossSlipstreamCharge = Math.max(0, this.bossSlipstreamCharge - (delta / 1000) * 20);
+    }
+
+    // 4. Periodic Taunts & Laughs
+    this.bossTauntTimer -= delta / 1000;
+    if (this.bossTauntTimer <= 0) {
+      this.bossTauntTimer = Phaser.Math.Between(6, 11);
+      if (this.bossDistanceLead < -5) {
+        // Fantomas ahead
+        const taunts = [
+          '«ХА-ХА! СВ НЕ ДОГНАТЬ!»',
+          '«СЁМА, ГДЕ ТВОЯ СКОРОСТЬ?!»',
+          '«МОНОКОЛЕСО SV — ЛУЧШЕЕ В ГОРОДЕ!»',
+        ];
+        const t = Phaser.Math.RND.pick(taunts);
+        this.createSpeechBubble(boss.x, boss.y - 85, t);
+        soundManager.playBossLaugh();
+      } else if (this.bossDistanceLead > 5) {
+        // Player ahead
+        const protests = [
+          '«ЭЙ, СЁМА, НЕ СПЕШИ РАДОВАТЬСЯ!»',
+          '«ВКЛЮЧАЮ ТУРБО SV!»',
+          '«Я ЕЩЁ ВЕРНУ ЛИДЕРСТВО!»',
+        ];
+        const t = Phaser.Math.RND.pick(protests);
+        this.createSpeechBubble(boss.x, boss.y - 85, t);
+      }
+    }
+
+    // 5. Boss reaches finish arch
+    if (boss.x >= this.levelConfig.length - 600 && !this.isVictory && !this.isGameOver) {
+      this.handleFinish();
+    }
   }
 }

@@ -868,6 +868,194 @@ class SoundManager {
     }
   }
 
+  public playBossIntro() {
+    this.vibrate([100, 50, 150, 80, 200]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+
+      // 1. THUNDEROUS SUB-BASS BOOM (80Hz -> 24Hz)
+      const subOsc = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      subOsc.type = 'sine';
+      subOsc.frequency.setValueAtTime(85, t);
+      subOsc.frequency.exponentialRampToValueAtTime(26, t + 0.8);
+      subGain.gain.setValueAtTime(0.55 * this.settings.volume, t);
+      subGain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+      subOsc.connect(subGain);
+      subGain.connect(this.ctx.destination);
+      subOsc.start(t);
+      subOsc.stop(t + 1.15);
+
+      // 2. CYBERPUNK EVIL SYNTH BRASS CHORD (Eb - Bb - Gb ominous minor)
+      const chordNotes = [155.56, 233.08, 293.66, 370.0];
+      chordNotes.forEach((freq, i) => {
+        if (!this.ctx) return;
+        const synthOsc = this.ctx.createOscillator();
+        const synthGain = this.ctx.createGain();
+        const synthFilter = this.ctx.createBiquadFilter();
+
+        synthOsc.type = 'sawtooth';
+        synthOsc.frequency.setValueAtTime(freq, t + 0.05);
+        synthOsc.frequency.linearRampToValueAtTime(freq * 0.98, t + 0.9);
+
+        synthFilter.type = 'lowpass';
+        synthFilter.frequency.setValueAtTime(450, t + 0.05);
+        synthFilter.frequency.linearRampToValueAtTime(1400, t + 0.35);
+        synthFilter.frequency.exponentialRampToValueAtTime(200, t + 1.0);
+        synthFilter.Q.setValueAtTime(4, t);
+
+        synthGain.gain.setValueAtTime(0.18 * this.settings.volume, t + 0.05);
+        synthGain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+
+        synthOsc.connect(synthFilter);
+        synthFilter.connect(synthGain);
+        synthGain.connect(this.ctx.destination);
+
+        synthOsc.start(t + 0.05);
+        synthOsc.stop(t + 1.05);
+      });
+
+      // 3. HIGH-TORQUE SV MOTOR SCREAM & TIRE SKID (High pitch screech with resonant filter)
+      const skidOsc = this.ctx.createOscillator();
+      const skidGain = this.ctx.createGain();
+      const skidFilter = this.ctx.createBiquadFilter();
+      skidOsc.type = 'sawtooth';
+      skidOsc.frequency.setValueAtTime(880, t + 0.35);
+      skidOsc.frequency.exponentialRampToValueAtTime(220, t + 0.9);
+
+      skidFilter.type = 'bandpass';
+      skidFilter.frequency.setValueAtTime(1800, t + 0.35);
+      skidFilter.Q.setValueAtTime(6, t);
+
+      skidGain.gain.setValueAtTime(0.22 * this.settings.volume, t + 0.35);
+      skidGain.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
+
+      skidOsc.connect(skidFilter);
+      skidFilter.connect(skidGain);
+      skidGain.connect(this.ctx.destination);
+
+      skidOsc.start(t + 0.35);
+      skidOsc.stop(t + 0.98);
+
+      // 4. EVIL SYNTHESIZED LAUGH BURSTS ("Ha - Ha - Haaa!")
+      const laughSteps = [
+        { start: 0.75, freq: 330, dur: 0.12 },
+        { start: 0.90, freq: 300, dur: 0.12 },
+        { start: 1.05, freq: 260, dur: 0.22 },
+      ];
+      laughSteps.forEach(({ start, freq, dur }) => {
+        if (!this.ctx) return;
+        const lOsc = this.ctx.createOscillator();
+        const lGain = this.ctx.createGain();
+        lOsc.type = 'sawtooth';
+        lOsc.frequency.setValueAtTime(freq, t + start);
+        lOsc.frequency.linearRampToValueAtTime(freq - 40, t + start + dur);
+
+        lGain.gain.setValueAtTime(0.24 * this.settings.volume, t + start);
+        lGain.gain.exponentialRampToValueAtTime(0.001, t + start + dur);
+
+        lOsc.connect(lGain);
+        lGain.connect(this.ctx.destination);
+        lOsc.start(t + start);
+        lOsc.stop(t + start + dur + 0.05);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  public playBossLaugh() {
+    this.vibrate([60, 40, 60]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const notes = [360, 320, 270, 230];
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const start = t + idx * 0.11;
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.linearRampToValueAtTime(freq - 35, start + 0.1);
+
+        gain.gain.setValueAtTime(0.22 * this.settings.volume, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.1);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.11);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  public playBossCountdown(count: number) {
+    this.vibrate(40);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const isGo = count === 0;
+
+      osc.type = isGo ? 'sawtooth' : 'sine';
+      osc.frequency.setValueAtTime(isGo ? 880 : 440 + (3 - count) * 80, t);
+      if (isGo) {
+        osc.frequency.exponentialRampToValueAtTime(1320, t + 0.35);
+      }
+
+      gain.gain.setValueAtTime(0.3 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + (isGo ? 0.45 : 0.18));
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + (isGo ? 0.48 : 0.2));
+    } catch {
+      // ignore
+    }
+  }
+
+  public playBossSlipstreamBoost() {
+    this.vibrate([70, 40, 90]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(280, t);
+      osc.frequency.exponentialRampToValueAtTime(1050, t + 0.3);
+
+      gain.gain.setValueAtTime(0.32 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.38);
+    } catch {
+      // ignore
+    }
+  }
+
   public playWobbleAlert() {
     this.vibrate([40, 30, 40, 30, 40]);
     if (!this.settings.sound) return;
@@ -1292,35 +1480,6 @@ class SoundManager {
     }
   }
 
-  // Boss laughing synthesizer staccato
-  public playBossLaugh() {
-    if (!this.settings.sound) return;
-    this.init();
-    if (!this.ctx) return;
-
-    try {
-      const t = this.ctx.currentTime;
-      const pitches = [240, 220, 200, 180, 160];
-      pitches.forEach((f, idx) => {
-        if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const st = t + idx * 0.11;
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(f, st);
-        osc.frequency.exponentialRampToValueAtTime(f * 0.85, st + 0.09);
-        gain.gain.setValueAtTime(0.25 * this.settings.volume, st);
-        gain.gain.exponentialRampToValueAtTime(0.001, st + 0.1);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(st);
-        osc.stop(st + 0.11);
-      });
-    } catch {
-      // ignore
-    }
-  }
-
   // Boss SV wheel stunned: electrical short-circuit & PWM failure crunch
   public playBossStun() {
     this.vibrate([150, 40, 150]);
@@ -1354,6 +1513,84 @@ class SoundManager {
       buzzGain.connect(this.ctx.destination);
       buzzOsc.start(t);
       buzzOsc.stop(t + 0.42);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Boss comic crying & sobbing sound effect
+  public playBossCry() {
+    this.vibrate([60, 40, 60, 40, 80]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      // Comic descending sobbing pitches ("Ы-ы-ы-ы!")
+      const sobPitches = [340, 310, 260, 220, 190];
+      sobPitches.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const start = t + idx * 0.14;
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.linearRampToValueAtTime(freq - 30, start + 0.12);
+
+        gain.gain.setValueAtTime(0.26 * this.settings.volume, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.14);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  // Boss speech voice when crying / defeated
+  public speakBossCry(phrase = 'Ы-ы-ы! Мой SV проиграл! Как же так?! Ы-ы-ы!') {
+    if (!this.settings.sound) return;
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(phrase);
+        utter.lang = 'ru-RU';
+        utter.rate = 1.0;
+        utter.pitch = 0.75; // slightly higher pitch sobbing voice
+        utter.volume = Math.min(1, this.settings.volume * 1.5);
+        const maleVoice = this.getMaleRussianVoice();
+        if (maleVoice) {
+          utter.voice = maleVoice;
+        }
+        window.speechSynthesis.speak(utter);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Boss speech voice when victorious
+  public speakBossWin(phrase = 'Ха-ха-ха! Я победил! Моноколесо SV непобедимо! Ха-ха-ха!') {
+    if (!this.settings.sound) return;
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(phrase);
+        utter.lang = 'ru-RU';
+        utter.rate = 1.15;
+        utter.pitch = 0.52; // menacing deep laugh
+        utter.volume = Math.min(1, this.settings.volume * 1.5);
+        const maleVoice = this.getMaleRussianVoice();
+        if (maleVoice) {
+          utter.voice = maleVoice;
+        }
+        window.speechSynthesis.speak(utter);
+      }
     } catch {
       // ignore
     }

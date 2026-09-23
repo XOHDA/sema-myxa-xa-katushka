@@ -213,7 +213,7 @@ export default function App() {
             onPauseToggle={handlePauseToggle}
             inputState={inputState}
             onInputChange={setInputState}
-            isPaused={gameState === 'PAUSED'}
+            isPaused={gameState !== 'PLAYING'}
           />
         )}
 
@@ -229,6 +229,8 @@ export default function App() {
             onInputChange={setInputState}
             disabled={gameState !== 'PLAYING'}
             boostHoldDuration={stats.boostHoldDuration}
+            battery={stats.battery}
+            isTiltback={stats.isTiltback}
           />
         )}
 
