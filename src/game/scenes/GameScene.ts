@@ -4169,7 +4169,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const centerX = 225;
-    const centerY = 190;
+    const centerY = 280;
 
     const container = this.add.container(centerX, centerY);
     container.setScrollFactor(0);
@@ -4262,7 +4262,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showCountdownOverlay(text: string, isGo: boolean = false) {
-    const cdText = this.add.text(225, 340, text, {
+    const cdText = this.add.text(225, 430, text, {
       fontFamily: 'Montserrat, "Arial Black", Rubik, sans-serif',
       fontSize: isGo ? '36px' : '48px',
       fontStyle: 'bold',
