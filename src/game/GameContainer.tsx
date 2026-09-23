@@ -229,8 +229,24 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
 
     const game = new Phaser.Game(config);
-    // Disable Phaser's auto-pause on blur to prevent warnings when preview iframe loses focus
+
+    // Safely wrap game.scene.pause to eliminate "Cannot pause non-running Scene" warnings
+    if (game.scene) {
+      const origPause = game.scene.pause.bind(game.scene);
+      game.scene.pause = function (key: string, data?: any) {
+        try {
+          if (key && (this as any).isActive && !(this as any).isActive(key)) {
+            return this;
+          }
+          return origPause(key, data);
+        } catch {
+          return this;
+        }
+      };
+    }
+
     game.events.off(Phaser.Core.Events.BLUR);
+    game.events.off(Phaser.Core.Events.HIDDEN);
     gameRef.current = game;
 
     return () => {

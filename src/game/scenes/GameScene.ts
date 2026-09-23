@@ -4335,10 +4335,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   public pauseGame() {
-    if (this.isSceneReady && this.sys && this.sys.settings) {
+    if (this.isSceneReady && this.sys?.settings) {
       try {
         const sceneKey = this.sys.settings.key || 'GameScene';
-        if (this.sys.settings.status === Phaser.Scenes.RUNNING && this.scene.isActive(sceneKey)) {
+        if (this.sys.settings.status === Phaser.Scenes.RUNNING && this.scene?.isActive(sceneKey)) {
           if (this.physics?.world) {
             this.physics.pause();
           }
@@ -4353,16 +4353,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   public resumeGame() {
-    if (this.isSceneReady && this.sys && this.sys.settings) {
+    if (this.isSceneReady && this.sys?.settings) {
       try {
         const sceneKey = this.sys.settings.key || 'GameScene';
-        if (this.sys.settings.status === Phaser.Scenes.PAUSED || this.scene.isPaused(sceneKey)) {
+        if (
+          (this.sys.settings.status === Phaser.Scenes.PAUSED || this.scene?.isPaused(sceneKey)) &&
+          this.scene?.isPaused(sceneKey)
+        ) {
           if (this.physics?.world) {
             this.physics.resume();
           }
-          if (this.scene.isPaused(sceneKey)) {
-            this.scene.resume(sceneKey);
-          }
+          this.scene.resume(sceneKey);
         }
       } catch {
         // Ignore errors if scene is transitioning or destroyed
