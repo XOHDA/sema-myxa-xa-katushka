@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { GameState, LevelId, PlayerStats, GameSettings, InputState } from './types';
+import { GameState, LevelId, PlayerStats, GameSettings, InputState, GarageUpgrades } from './types';
 import { GameContainer } from './game/GameContainer';
 import { TouchControls } from './components/TouchControls';
 import { HUD } from './components/HUD';
@@ -11,8 +11,18 @@ import { LevelSelectModal } from './components/LevelSelectModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ControlsModal } from './components/ControlsModal';
 import { LevelTransitionModal } from './components/LevelTransitionModal';
+import { GarageModal } from './components/GarageModal';
 import { soundManager } from './audio/soundManager';
 import { Smartphone, Monitor } from 'lucide-react';
+
+const DEFAULT_UPGRADES: GarageUpgrades = {
+  batteryLevel: 0,
+  controllerLevel: 0,
+  hydroLevel: 0,
+  selectedSkin: 'emerald',
+  unlockedSkins: ['emerald'],
+  totalVolts: 0,
+};
 
 const INITIAL_STATS: PlayerStats = {
   shields: 3,
@@ -76,10 +86,40 @@ export default function App() {
   const [isLevelSelectOpen, setIsLevelSelectOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isControlsOpen, setIsControlsOpen] = useState(false);
+  const [isGarageOpen, setIsGarageOpen] = useState(false);
   const [transitioningLevel, setTransitioningLevel] = useState<LevelId | null>(null);
 
   // Desktop Simulator Frame toggle
   const [showPhoneFrame, setShowPhoneFrame] = useState(false);
+
+  // Garage & Upgrades State (persisted in localStorage)
+  const [upgrades, setUpgrades] = useState<GarageUpgrades>(() => {
+    try {
+      const saved = localStorage.getItem('sema_voltarz_upgrades');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_UPGRADES, ...parsed };
+      }
+    } catch {}
+    return DEFAULT_UPGRADES;
+  });
+
+  const handleSaveUpgrades = useCallback((newUpgrades: GarageUpgrades) => {
+    setUpgrades(newUpgrades);
+    try {
+      localStorage.setItem('sema_voltarz_upgrades', JSON.stringify(newUpgrades));
+    } catch {}
+  }, []);
+
+  const handleCollectVoltInGame = useCallback(() => {
+    setUpgrades((prev) => {
+      const next = { ...prev, totalVolts: prev.totalVolts + 1 };
+      try {
+        localStorage.setItem('sema_voltarz_upgrades', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>({
@@ -207,9 +247,11 @@ export default function App() {
             key={`level-${currentLevel}-${gameRunId}`}
             levelId={currentLevel}
             settings={settings}
+            upgrades={upgrades}
             onStatsUpdate={handleStatsUpdate}
             onGameOver={handleGameOver}
             onVictory={handleVictory}
+            onCollectVolt={handleCollectVoltInGame}
             onPauseToggle={handlePauseToggle}
             inputState={inputState}
             onInputChange={setInputState}
@@ -246,6 +288,8 @@ export default function App() {
             onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
             onOpenControls={() => setIsControlsOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenGarage={() => setIsGarageOpen(true)}
+            totalVolts={upgrades.totalVolts}
           />
         )}
 
@@ -311,6 +355,14 @@ export default function App() {
         {isControlsOpen && (
           <ControlsModal onClose={() => setIsControlsOpen(false)} />
         )}
+
+        {/* 11. ГАРАЖ И ПРОКАЧКА */}
+        <GarageModal
+          isOpen={isGarageOpen}
+          onClose={() => setIsGarageOpen(false)}
+          upgrades={upgrades}
+          onSaveUpgrades={handleSaveUpgrades}
+        />
       </div>
     </div>
   );

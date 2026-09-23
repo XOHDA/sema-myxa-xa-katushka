@@ -2,14 +2,16 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
 import { LEVELS } from './levels';
-import { GameSettings, InputState, LevelId, PlayerStats } from '../types';
+import { GameSettings, InputState, LevelId, PlayerStats, GarageUpgrades } from '../types';
 
 interface GameContainerProps {
   levelId: LevelId;
   settings: GameSettings;
+  upgrades: GarageUpgrades;
   onStatsUpdate: (stats: PlayerStats) => void;
   onGameOver: () => void;
   onVictory: () => void;
+  onCollectVolt?: () => void;
   onPauseToggle: () => void;
   inputState: InputState;
   onInputChange: (input: InputState) => void;
@@ -18,9 +20,12 @@ interface GameContainerProps {
 
 export const GameContainer: React.FC<GameContainerProps> = ({
   levelId,
+  settings,
+  upgrades,
   onStatsUpdate,
   onGameOver,
   onVictory,
+  onCollectVolt,
   onPauseToggle,
   inputState,
   onInputChange,
@@ -175,7 +180,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       levelConfig,
       onStatsUpdate,
       onGameOver,
-      onVictory
+      onVictory,
+      upgrades,
+      onCollectVolt
     );
     sceneRef.current = scene;
 

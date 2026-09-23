@@ -4,9 +4,9 @@
  */
 export const RU = {
   // Общие
-  appName: 'СЁМА МУХА-ХА',
-  appSubtitle: 'КАТУШКА',
-  version: 'Версия 1.0',
+  appName: 'VOLTARZ',
+  appSubtitle: 'СЁМА ПРОТИВ ФАНТОМАСА',
+  version: 'Версия 2.0',
 
   // Главное меню
   play: 'ИГРАТЬ',

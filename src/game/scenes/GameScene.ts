@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { generateGameTextures } from '../textures';
 import { soundManager } from '../../audio/soundManager';
-import { InputState, LevelConfig, PlayerStats, WeatherType } from '../../types';
+import { InputState, LevelConfig, PlayerStats, WeatherType, GarageUpgrades } from '../../types';
 import { RU } from '../../localization/ru';
 
 export class GameScene extends Phaser.Scene {
@@ -9,6 +9,15 @@ export class GameScene extends Phaser.Scene {
   private onStatsUpdate: (stats: PlayerStats) => void;
   private onGameOver: () => void;
   private onVictory: () => void;
+  private upgrades: GarageUpgrades = {
+    batteryLevel: 0,
+    controllerLevel: 0,
+    hydroLevel: 0,
+    selectedSkin: 'emerald',
+    unlockedSkins: ['emerald'],
+    totalVolts: 0,
+  };
+  private onCollectVoltCallback?: () => void;
   private inputState: InputState = {
     left: false,
     right: false,
@@ -160,7 +169,9 @@ export class GameScene extends Phaser.Scene {
     levelConfig: LevelConfig,
     onStatsUpdate: (stats: PlayerStats) => void,
     onGameOver: () => void,
-    onVictory: () => void
+    onVictory: () => void,
+    upgrades?: GarageUpgrades,
+    onCollectVolt?: () => void
   ) {
     super({ key: 'GameScene' });
     this.levelConfig = levelConfig;
@@ -168,6 +179,10 @@ export class GameScene extends Phaser.Scene {
     this.onStatsUpdate = onStatsUpdate;
     this.onGameOver = onGameOver;
     this.onVictory = onVictory;
+    if (upgrades) {
+      this.upgrades = upgrades;
+    }
+    this.onCollectVoltCallback = onCollectVolt;
   }
 
   public setInputState(input: InputState) {
@@ -1854,22 +1869,26 @@ export class GameScene extends Phaser.Scene {
         // Accumulate continuous boost hold duration
         this.boostHoldDuration += delta / 1000;
 
-        // Warning sound & alert when approaching 3.0 seconds
-        if (this.boostHoldDuration >= 1.5 && this.boostHoldDuration < 3.0) {
+        // Dynamic cutout threshold based on Controller Upgrade (3.0s -> 5.0s)
+        const boostCutoutThreshold = 3.0 + this.upgrades.controllerLevel * 0.65;
+        const warningStartThreshold = boostCutoutThreshold - 1.5;
+
+        // Warning sound & alert when approaching cutout threshold
+        if (this.boostHoldDuration >= warningStartThreshold && this.boostHoldDuration < boostCutoutThreshold) {
           this.boostWarningTimer -= delta / 1000;
           if (this.boostWarningTimer <= 0) {
             soundManager.playBoostWarning(this.boostHoldDuration);
-            if (this.boostHoldDuration >= 2.2) {
+            if (this.boostHoldDuration >= boostCutoutThreshold - 0.7) {
               this.triggerSpeech('ПЕРЕГРЕВ! ОТПУСТИ БУСТ!');
               this.cameras.main.shake(70, 0.005);
             }
-            // Warning beep frequency accelerates as 3.0s approaches
-            this.boostWarningTimer = Math.max(0.12, 0.42 - (this.boostHoldDuration - 1.5) * 0.2);
+            // Warning beep frequency accelerates as threshold approaches
+            this.boostWarningTimer = Math.max(0.10, 0.42 - (this.boostHoldDuration - warningStartThreshold) * 0.22);
           }
         }
 
-        // CRITICAL CUTOUT: Boost held for more than 3 seconds!
-        if (this.boostHoldDuration >= 3.0 && !this.isCutout && !this.isGameOver && !this.isVictory) {
+        // CRITICAL CUTOUT: Boost held for longer than controller threshold!
+        if (this.boostHoldDuration >= boostCutoutThreshold && !this.isCutout && !this.isGameOver && !this.isVictory) {
           this.triggerCutout('boost');
         }
       }
@@ -2117,6 +2136,9 @@ export class GameScene extends Phaser.Scene {
     voltObj.destroy();
     this.voltsCollected++;
     this.score += 100 * this.combo;
+    if (this.onCollectVoltCallback) {
+      this.onCollectVoltCallback();
+    }
     soundManager.playVolt();
 
     // Floating score popup

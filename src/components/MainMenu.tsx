@@ -1,6 +1,6 @@
 import React from 'react';
 import { RU } from '../localization/ru';
-import { Play, Layers, HelpCircle, Settings as SettingsIcon, Zap, Music } from 'lucide-react';
+import { Play, Layers, HelpCircle, Settings as SettingsIcon, Zap, Music, Wrench } from 'lucide-react';
 import { soundManager } from '../audio/soundManager';
 
 interface MainMenuProps {
@@ -8,6 +8,8 @@ interface MainMenuProps {
   onOpenLevelSelect: () => void;
   onOpenControls: () => void;
   onOpenSettings: () => void;
+  onOpenGarage: () => void;
+  totalVolts: number;
 }
 
 export const MainMenu: React.FC<MainMenuProps> = ({
@@ -15,6 +17,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onOpenLevelSelect,
   onOpenControls,
   onOpenSettings,
+  onOpenGarage,
+  totalVolts,
 }) => {
   return (
     <div
@@ -107,19 +111,35 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <button
           id="btn-menu-play"
           onClick={onStartGame}
-          className="w-full h-15 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-black text-xl tracking-wider flex items-center justify-center gap-3 shadow-[0_0_25px_rgba(16,185,129,0.5)] border-2 border-emerald-300 active:scale-95 transition-all"
+          className="w-full h-14 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-black text-xl tracking-wider flex items-center justify-center gap-3 shadow-[0_0_25px_rgba(16,185,129,0.5)] border-2 border-emerald-300 active:scale-95 transition-all cursor-pointer"
         >
           <Play className="w-6 h-6 fill-white stroke-none" />
           <span>{RU.play}</span>
+        </button>
+
+        {/* ГАРАЖ & КАСТОМИЗАЦИЯ */}
+        <button
+          id="btn-menu-garage"
+          onClick={onOpenGarage}
+          className="w-full h-12 rounded-xl bg-gradient-to-r from-amber-500/20 via-slate-900 to-emerald-950/40 backdrop-blur-md text-amber-300 font-black text-sm tracking-wide flex items-center justify-between px-4 border-2 border-amber-400/50 hover:border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] active:scale-95 transition-all cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <Wrench className="w-4 h-4 text-amber-400" />
+            <span>ГАРАЖ И ПРОКАЧКА</span>
+          </div>
+          <div className="flex items-center gap-1 font-black text-xs bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/40 text-amber-300">
+            <span>{totalVolts}</span>
+            <Zap className="w-3 h-3 fill-amber-400" />
+          </div>
         </button>
 
         {/* ВЫБОР УРОВНЯ */}
         <button
           id="btn-menu-levels"
           onClick={onOpenLevelSelect}
-          className="w-full h-12 rounded-xl bg-black/55 backdrop-blur-md text-white font-bold text-base tracking-wide flex items-center justify-center gap-2 border border-emerald-700/50 hover:border-emerald-500 active:scale-95 transition-all"
+          className="w-full h-11 rounded-xl bg-black/55 backdrop-blur-md text-white font-bold text-sm tracking-wide flex items-center justify-center gap-2 border border-emerald-700/50 hover:border-emerald-500 active:scale-95 transition-all cursor-pointer"
         >
-          <Layers className="w-5 h-5 text-emerald-400" />
+          <Layers className="w-4 h-4 text-emerald-400" />
           <span>{RU.selectLevel}</span>
         </button>
 

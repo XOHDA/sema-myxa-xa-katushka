@@ -20,6 +20,17 @@ export interface LevelConfig {
   speedRatingKmh: number; // approximate target cruising speed in km/h
 }
 
+export type SkinType = 'emerald' | 'gold' | 'cyan' | 'ruby' | 'phantom';
+
+export interface GarageUpgrades {
+  batteryLevel: number; // 0..3
+  controllerLevel: number; // 0..3
+  hydroLevel: number; // 0..3
+  selectedSkin: SkinType;
+  unlockedSkins: SkinType[];
+  totalVolts: number;
+}
+
 export interface PlayerStats {
   shields: number;
   maxShields: number;
