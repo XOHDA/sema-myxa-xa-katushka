@@ -1164,9 +1164,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     // 5. BATTERY DISCHARGE & TILTBACK LOGIC
-    // EUC naturally discharges over time while riding; pickups & charging stations recharge it!
+    // EUC naturally discharges over time while riding; upgrades reduce drain rate!
     const isMoving = Math.abs(this.player.body?.velocity.x || 0) > 20;
-    const drainRate = this.isBoosting ? 14.0 : (isMoving ? 2.4 : 0.2);
+    const baseDrain = this.isBoosting ? 14.0 : (isMoving ? 2.4 : 0.2);
+    // Battery upgrade reduces discharge rate up to 66%
+    const batteryEfficiency = Math.max(0.34, 1.0 - (this.upgrades?.batteryLevel || 0) * 0.22);
+    const drainRate = baseDrain * batteryEfficiency;
 
     if (!this.isSuperBoost) {
       this.battery = Math.max(0, this.battery - (delta / 1000) * drainRate);
@@ -1245,17 +1248,18 @@ export class GameScene extends Phaser.Scene {
       this.avgSpeedKmh = Math.round((this.speedSamplesSum / this.speedSamplesCount) * 10) / 10;
     }
 
-    // PWM (ШИМ) calculation: EUC motor duty cycle calibrated to 150 km/h max speed
-    const basePwm = (this.speedKmh / 150) * 80;
+    // PWM (ШИМ) calculation: EUC motor duty cycle calibrated to max limit
+    const cutoutMaxSpeed = 150.0 + (this.upgrades?.controllerLevel || 0) * 5.0;
+    const basePwm = (this.speedKmh / cutoutMaxSpeed) * 80;
     // Boost pushes PWM higher; continuous hold drives PWM towards 100%
-    const boostPwmSurge = this.isBoosting ? 8 + (this.boostHoldDuration / 3.0) * 18 : 0;
+    const boostPwmSurge = this.isBoosting ? 8 + (this.boostHoldDuration / (3.0 + (this.upgrades?.controllerLevel || 0) * 0.65)) * 18 : 0;
     this.currentPwm = Math.min(100, Math.max(0, Math.round(basePwm + boostPwmSurge)));
     if (this.currentPwm > this.maxPwm) {
       this.maxPwm = this.currentPwm;
     }
 
-    // Cutout / Продав колеса при превышении 150 км/ч
-    if (this.speedKmh >= 150.0 && !this.isCutout && !this.isGameOver && !this.isVictory) {
+    // Cutout / Продав колеса при превышении максимального порога ШИМ/скорости
+    if (this.speedKmh >= cutoutMaxSpeed && !this.isCutout && !this.isGameOver && !this.isVictory) {
       this.triggerCutout('speed');
     }
 
@@ -1820,7 +1824,10 @@ export class GameScene extends Phaser.Scene {
       this.boostHoldDuration = 0;
       this.jumpBufferTimer = 0;
       this.jumpTriggered = false;
+      soundManager.updateMotorSpeed(0, false);
+      soundManager.stopMotor();
       soundManager.updateTurbine(false, 0, false);
+      soundManager.stopTurbine();
       return;
     }
 
@@ -1842,11 +1849,15 @@ export class GameScene extends Phaser.Scene {
       }
       accel = onGround ? 180 : 110;
     } else {
-      const baseSpeed = this.levelConfig.baseSpeed || 300;
-      const normalBoost = this.levelConfig.boostSpeed || 680;
-      const boostSpeed = this.isSuperBoost ? Math.min(1020, normalBoost + 50) : normalBoost;
+      const controllerSpeedBonus = (this.upgrades?.controllerLevel || 0) * 35;
+      const controllerAccelBonus = (this.upgrades?.controllerLevel || 0) * 60;
+      const baseSpeed = (this.levelConfig.baseSpeed || 300) + (this.upgrades?.controllerLevel || 0) * 15;
+      const normalBoost = (this.levelConfig.boostSpeed || 680) + controllerSpeedBonus;
+      const boostSpeed = this.isSuperBoost ? Math.min(1120, normalBoost + 60) : normalBoost;
       maxSpeed = this.isBoosting ? boostSpeed : baseSpeed;
-      accel = onGround ? Math.round(880 + this.levelConfig.id * 20) : Math.round(460 + this.levelConfig.id * 12);
+      accel = onGround
+        ? Math.round(880 + this.levelConfig.id * 20 + controllerAccelBonus)
+        : Math.round(460 + this.levelConfig.id * 12 + controllerAccelBonus * 0.5);
     }
 
     const drag = onGround ? Math.round(780 + this.levelConfig.id * 10) : 250;
@@ -2699,9 +2710,18 @@ export class GameScene extends Phaser.Scene {
   private handlePuddleSlip() {
     if (this.isInvulnerable || this.isWobbling) return;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
-    // Puddle causes slight loss of traction
-    body.setVelocityX(body.velocity.x * 0.7);
-    this.player.setAngle(this.player.flipX ? 12 : -12);
+    const hydro = this.upgrades?.hydroLevel || 0;
+    
+    // IP68 Hydro Level 3 provides 100% immunity to puddle slipping
+    if (hydro >= 3) {
+      return;
+    }
+
+    // Puddle causes slight loss of traction (mitigated by Hydro levels 1 and 2)
+    const slipFactor = hydro === 2 ? 0.92 : hydro === 1 ? 0.82 : 0.70;
+    body.setVelocityX(body.velocity.x * slipFactor);
+    this.player.setAngle(this.player.flipX ? 10 : -10);
+    soundManager.playPuddleSlip();
   }
 
   private triggerWobble() {
@@ -3939,7 +3959,10 @@ export class GameScene extends Phaser.Scene {
     this.jumpBufferTimer = 0;
     this.jumpTriggered = false;
     this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
+    soundManager.updateMotorSpeed(0, false);
+    soundManager.stopMotor();
     soundManager.updateTurbine(false, 0, false);
+    soundManager.stopTurbine();
     if (this.player?.body) {
       const pb = this.player.body as Phaser.Physics.Arcade.Body;
       pb.setVelocityX(0);
@@ -4082,6 +4105,7 @@ export class GameScene extends Phaser.Scene {
           this.bossDuelIntroPlaying = false;
           this.bossDuelActive = true;
           this.bossBoostTimer = 2.5;
+          soundManager.startMotor();
 
           if (this.bossSprite) {
             this.bossSprite.setTexture('boss_fantomas');

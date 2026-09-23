@@ -868,6 +868,41 @@ class SoundManager {
     }
   }
 
+  public playPuddleSlip() {
+    this.vibrate([15, 30, 20]);
+    if (!this.settings.sound) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      // Splash skid sound: swoosh with pitch drop
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(420, t);
+      osc.frequency.exponentialRampToValueAtTime(90, t + 0.22);
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(650, t);
+      filter.Q.setValueAtTime(2.5, t);
+
+      gain.gain.setValueAtTime(0.24 * this.settings.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.25);
+    } catch {
+      // ignore
+    }
+  }
+
   public playBossIntro() {
     this.vibrate([100, 50, 150, 80, 200]);
     if (!this.settings.sound) return;
