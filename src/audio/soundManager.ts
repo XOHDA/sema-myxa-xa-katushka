@@ -2077,8 +2077,8 @@ class SoundManager {
         this.bgAudio.volume = 0.75 * this.settings.volume;
         await this.bgAudio.play();
         return;
-      } catch (e) {
-        console.warn('Real audio play deferred or failed, running phonk synth fallback:', e);
+      } catch {
+        // Audio file unavailable or playback deferred, seamlessly fall through to phonk synth
       }
     }
 

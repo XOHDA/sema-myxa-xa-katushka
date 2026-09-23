@@ -45,13 +45,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     }
   }, [inputState]);
 
+  // Pass updated garage upgrades & skin customization down to Phaser scene
+  useEffect(() => {
+    if (sceneRef.current) {
+      sceneRef.current.updateUpgrades(upgrades);
+    }
+  }, [upgrades]);
+
   // Handle Pause / Resume
   const prevPausedRef = useRef<boolean>(isPaused);
   useEffect(() => {
     if (prevPausedRef.current === isPaused) return;
     prevPausedRef.current = isPaused;
 
-    if (!sceneRef.current) return;
+    if (!sceneRef.current || !sceneRef.current.isSceneReady) return;
     if (isPaused) {
       sceneRef.current.pauseGame();
     } else {
@@ -218,6 +225,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       audio: {
         noAudio: true, // We use custom soundManager, disable Phaser's WebAudio to prevent closed AudioContext errors
       },
+      banner: false,
     };
 
     const game = new Phaser.Game(config);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { generateGameTextures } from '../textures';
+import { generateGameTextures, SKIN_PALETTES } from '../textures';
 import { soundManager } from '../../audio/soundManager';
 import { InputState, LevelConfig, PlayerStats, WeatherType, GarageUpgrades } from '../../types';
 import { RU } from '../../localization/ru';
@@ -71,7 +71,7 @@ export class GameScene extends Phaser.Scene {
   private nextWobbleDistance = 350;
   private isGameOver = false;
   private isVictory = false;
-  private isSceneReady = false;
+  public isSceneReady = false;
   private skeletonTimer: Phaser.Time.TimerEvent | null = null;
   private gameOverTimer: Phaser.Time.TimerEvent | null = null;
   private victoryTimer: Phaser.Time.TimerEvent | null = null;
@@ -82,6 +82,8 @@ export class GameScene extends Phaser.Scene {
   private airStartX = 0;
   private airStartY = 0;
   private airRotationTotal = 0;
+  private airFlipProgress = 0;
+  private completedFlipsCount = 0;
   private lastAngle = 0;
 
   // Checkpoints
@@ -99,6 +101,7 @@ export class GameScene extends Phaser.Scene {
   private checkpoints!: Phaser.Physics.Arcade.StaticGroup;
   private lastChargingStationX = 0;
   private obstacles!: Phaser.Physics.Arcade.StaticGroup;
+  private overheadObstacles!: Phaser.Physics.Arcade.StaticGroup;
   private puddles!: Phaser.Physics.Arcade.StaticGroup;
   private finishZone!: Phaser.GameObjects.Zone;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -110,6 +113,7 @@ export class GameScene extends Phaser.Scene {
   private isTiltback = false;
   private tiltbackBeepTimer = 0;
   private tiltbackSpeechTimer = 0;
+  private eucWheel!: Phaser.GameObjects.Sprite;
 
   // Boost distortion visual FX & Camera Lens Warp
   private boostDistortionOverlay!: Phaser.GameObjects.Graphics;
@@ -206,9 +210,9 @@ export class GameScene extends Phaser.Scene {
       this.jumpBufferTimer = 0.16; // 160ms jump buffer in case slightly airborne
       this.jumpTriggered = true;
       if (this.player?.body) {
-        const onGround = this.player.body.blocked.down || this.player.body.touching.down;
+        const body = this.player.body as Phaser.Physics.Arcade.Body;
+        const onGround = body.blocked.down || body.touching.down;
         if (onGround && !this.isGameOver && !this.isVictory && !this.isCutout && !this.bossDuelIntroPlaying) {
-          const body = this.player.body as Phaser.Physics.Arcade.Body;
           const maxSpeed = this.levelConfig.baseSpeed || 300;
           const speedRatio = Math.abs(body.velocity.x) / Math.max(1, maxSpeed);
           const jumpImpulse = -630 - speedRatio * 110;
@@ -220,8 +224,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   public preload() {
-    // Generate procedural canvas textures
-    generateGameTextures(this);
+    // Generate procedural canvas textures with current player skin
+    const skin = this.upgrades?.selectedSkin || 'emerald';
+    generateGameTextures(this, skin, true);
+  }
+
+  public updateUpgrades(newUpgrades: GarageUpgrades) {
+    this.upgrades = newUpgrades;
+    const skin = newUpgrades.selectedSkin || 'emerald';
+    generateGameTextures(this, skin, true);
+    if (this.player && this.player.active) {
+      const currentTex = this.player.texture?.key || 'sema_normal';
+      this.player.setTexture(currentTex);
+    }
+    if (this.eucWheel && this.eucWheel.active) {
+      this.eucWheel.setTexture(`euc_wheel_${skin}`);
+    }
+    if (this.headlightBeam) {
+      const beamColor = SKIN_PALETTES[skin]?.headlightBeamHex || 0xfef08a;
+      this.headlightBeam.setFillStyle(beamColor, 0.22);
+    }
   }
 
   public create() {
@@ -252,6 +274,7 @@ export class GameScene extends Phaser.Scene {
     this.lightningPickups = this.physics.add.staticGroup();
     this.checkpoints = this.physics.add.staticGroup();
     this.obstacles = this.physics.add.staticGroup();
+    this.overheadObstacles = this.physics.add.staticGroup();
     this.puddles = this.physics.add.staticGroup();
     this.enemies = this.physics.add.group();
     this.drones = this.physics.add.group();
@@ -262,14 +285,23 @@ export class GameScene extends Phaser.Scene {
     // Scaled to 0.72: compact, nimble, fits under all overhead bridges, signs, and arches!
     this.player = this.physics.add.sprite(120, 540, 'sema_normal');
     this.player.setScale(0.72);
+    this.player.setOrigin(0.5, 0.5);
     this.player.setCollideWorldBounds(true);
-    this.player.setBounce(0.04);
-    // Physics body tightly around EUC wheel contact point (width: 48, height: 120, offset: 61, 105)
+    this.player.setBounce(0);
+    // Physics body tightly around EUC wheel contact point
     this.player.setSize(48, 120);
-    this.player.setOffset(61, 105);
+    this.player.setOffset(116, 138);
     this.player.setDepth(10);
 
-    // Headlight polygon attached to Sema's EUC
+    // Single rotating EUC wheel
+    const activeSkin = this.upgrades?.selectedSkin || 'emerald';
+    this.eucWheel = this.add.sprite(this.player.x, this.player.y, `euc_wheel_${activeSkin}`);
+    this.eucWheel.setScale(0.72);
+    this.eucWheel.setOrigin(0.5, 0.5);
+    this.eucWheel.setDepth(9.9);
+
+    // Headlight polygon attached to Sema's EUC (customized beam color per skin)
+    const headlightColor = SKIN_PALETTES[activeSkin]?.headlightBeamHex || 0xfef08a;
     this.headlightBeam = this.add.polygon(
       0,
       0,
@@ -278,7 +310,7 @@ export class GameScene extends Phaser.Scene {
         { x: 160, y: -40 },
         { x: 160, y: 50 },
       ],
-      0xfef08a,
+      headlightColor,
       0.22
     );
     this.headlightBeam.setScale(0.72);
@@ -336,6 +368,7 @@ export class GameScene extends Phaser.Scene {
 
     // Hazards & Obstacles
     this.physics.add.overlap(this.player, this.obstacles, this.handleHitObstacle, undefined, this);
+    this.physics.add.overlap(this.player, this.overheadObstacles, this.handleHitOverheadObstacle, undefined, this);
     this.physics.add.overlap(this.player, this.enemies, this.handleHitObstacle, undefined, this);
     this.physics.add.overlap(this.player, this.drones, this.handleHitDrone, undefined, this);
     this.physics.add.overlap(this.player, this.poopProjectiles, this.handleHitPoop, undefined, this);
@@ -783,22 +816,28 @@ export class GameScene extends Phaser.Scene {
     // Obstacle types selected based on level theme and exterior
     const levelId = this.levelConfig.id;
     let availableObstacles = ['obstacle_cone', 'obstacle_bench', 'obstacle_scooter_fallen'];
+    let availableOverheadObstacles = ['obstacle_overhead_barrier'];
 
     if (levelId === 1 || levelId === 4 || levelId === 15) {
       // Park & Embankment
       availableObstacles = ['obstacle_bench', 'obstacle_storm_grate', 'obstacle_cone'];
+      availableOverheadObstacles = ['obstacle_overhead_branch', 'obstacle_overhead_barrier'];
     } else if (levelId === 2 || levelId === 9) {
       // Rooftops
       availableObstacles = ['obstacle_rooftop_vent', 'obstacle_bench', 'obstacle_cone'];
+      availableOverheadObstacles = ['obstacle_overhead_barrier', 'obstacle_overhead_pipe'];
     } else if (levelId === 3 || levelId === 7) {
       // Industrial
       availableObstacles = ['obstacle_industrial_barrel', 'obstacle_jersey_barrier', 'obstacle_storm_grate'];
+      availableOverheadObstacles = ['obstacle_overhead_pipe', 'obstacle_overhead_barrier'];
     } else if (levelId === 10) {
       // Metro
       availableObstacles = ['obstacle_metro_hazard', 'obstacle_storm_grate', 'obstacle_cone'];
+      availableOverheadObstacles = ['obstacle_overhead_laser', 'obstacle_overhead_barrier'];
     } else if (levelId === 5 || levelId === 8 || levelId === 12 || levelId === 14) {
       // Highways
       availableObstacles = ['obstacle_jersey_barrier', 'obstacle_cone', 'obstacle_scooter_fallen'];
+      availableOverheadObstacles = ['obstacle_overhead_barrier', 'obstacle_overhead_pipe'];
     }
 
     while (currentX < endX - 90) {
@@ -820,37 +859,50 @@ export class GameScene extends Phaser.Scene {
         this.lightningPickups.create(currentX, groundY - 50, 'item_super_lightning');
         currentX += Math.round(135 * stepScale);
       } else if (rand < puddleThreshold) {
-        // Obstacle matching level theme & exterior
-        const obsType = Phaser.Math.RND.pick(availableObstacles);
-        const obs = this.obstacles.create(currentX, groundY - 16, obsType);
-        const obsBody = obs.body as Phaser.Physics.Arcade.StaticBody;
-        if (obsType === 'obstacle_cone') {
-          obsBody.setSize(24, 28);
-          obsBody.setOffset(10, 24);
-        } else if (obsType === 'obstacle_bench') {
-          obsBody.setSize(68, 26);
-          obsBody.setOffset(16, 32);
-        } else if (obsType === 'obstacle_scooter_fallen') {
-          obsBody.setSize(58, 18);
-          obsBody.setOffset(14, 24);
-        } else if (obsType === 'obstacle_storm_grate') {
-          obsBody.setSize(48, 14);
-          obsBody.setOffset(8, 28);
-        } else if (obsType === 'obstacle_industrial_barrel') {
-          obsBody.setSize(34, 46);
-          obsBody.setOffset(7, 10);
-        } else if (obsType === 'obstacle_rooftop_vent') {
-          obsBody.setSize(46, 36);
-          obsBody.setOffset(9, 18);
-        } else if (obsType === 'obstacle_metro_hazard') {
-          obsBody.setSize(38, 48);
-          obsBody.setOffset(5, 8);
-        } else if (obsType === 'obstacle_jersey_barrier') {
-          obsBody.setSize(64, 30);
-          obsBody.setOffset(8, 26);
+        // Decide whether this is a ground obstacle or an overhead crouch obstacle
+        const isOverhead = Math.random() < 0.38;
+        if (isOverhead) {
+          const overheadType = Phaser.Math.RND.pick(availableOverheadObstacles);
+          const obs = this.overheadObstacles.create(currentX, groundY - 74, overheadType);
+          const obsBody = obs.body as Phaser.Physics.Arcade.StaticBody;
+          obsBody.setSize(94, 52);
+          obsBody.setOffset(23, 6);
+          obs.setDepth(11);
+          obs.refreshBody();
+          currentX += Math.round(145 * stepScale);
+        } else {
+          // Obstacle matching level theme & exterior
+          const obsType = Phaser.Math.RND.pick(availableObstacles);
+          const obs = this.obstacles.create(currentX, groundY - 16, obsType);
+          const obsBody = obs.body as Phaser.Physics.Arcade.StaticBody;
+          if (obsType === 'obstacle_cone') {
+            obsBody.setSize(24, 28);
+            obsBody.setOffset(10, 24);
+          } else if (obsType === 'obstacle_bench') {
+            obsBody.setSize(68, 26);
+            obsBody.setOffset(16, 32);
+          } else if (obsType === 'obstacle_scooter_fallen') {
+            obsBody.setSize(58, 18);
+            obsBody.setOffset(14, 24);
+          } else if (obsType === 'obstacle_storm_grate') {
+            obsBody.setSize(48, 14);
+            obsBody.setOffset(8, 28);
+          } else if (obsType === 'obstacle_industrial_barrel') {
+            obsBody.setSize(34, 46);
+            obsBody.setOffset(7, 10);
+          } else if (obsType === 'obstacle_rooftop_vent') {
+            obsBody.setSize(46, 36);
+            obsBody.setOffset(9, 18);
+          } else if (obsType === 'obstacle_metro_hazard') {
+            obsBody.setSize(38, 48);
+            obsBody.setOffset(5, 8);
+          } else if (obsType === 'obstacle_jersey_barrier') {
+            obsBody.setSize(64, 30);
+            obsBody.setOffset(8, 26);
+          }
+          obs.refreshBody();
+          currentX += Math.round(125 * stepScale);
         }
-        obs.refreshBody();
-        currentX += Math.round(125 * stepScale);
       } else if (rand < enemyThreshold) {
         // Puddle
         const puddle = this.puddles.create(currentX, groundY - 6, 'obstacle_puddle');
@@ -1280,29 +1332,48 @@ export class GameScene extends Phaser.Scene {
       this.overspeedBeepTimer = 0;
     }
 
-    // 9. AIR & TRICK ROTATION LOGIC
-    const onGround = this.player.body?.blocked.down || this.player.body?.touching.down;
+    // 9. AIR & TRICK ROTATION LOGIC (REAL 360° BACKFLIPS / FRONTFLIPS ON MONOWHEEL)
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const onGround = body?.blocked.down || body?.touching.down;
     if (!onGround) {
       if (!this.isAirborne) {
-        // Just took off
+        // Just took off into air
         this.isAirborne = true;
         this.airStartTime = time;
         this.airStartX = this.player.x;
         this.airStartY = this.player.y;
         this.airRotationTotal = 0;
+        this.airFlipProgress = 0;
+        this.completedFlipsCount = 0;
         this.lastAngle = this.player.angle;
       } else {
-        // While airborne, pressing left or right spins Sema for tricks!
-        if (this.inputState.left) {
-          this.player.setAngle(this.player.angle - 6);
-        } else if (this.inputState.right) {
-          this.player.setAngle(this.player.angle + 6);
+        // Continuous real 360° flip loop rotation in air (540 degrees/sec)
+        const flipRate = 540;
+        let rotationDelta = 0;
+
+        if (this.inputState.right) {
+          rotationDelta = flipRate * (delta / 1000); // Frontflip (clockwise)
+        } else if (this.inputState.left) {
+          rotationDelta = -flipRate * (delta / 1000); // Backflip (counter-clockwise)
         }
 
-        // Track rotation delta
-        const currentAngle = this.player.angle;
-        this.airRotationTotal += Math.abs(currentAngle - this.lastAngle);
-        this.lastAngle = currentAngle;
+        if (rotationDelta !== 0) {
+          this.player.setAngle(this.player.angle + rotationDelta);
+          this.airFlipProgress += Math.abs(rotationDelta);
+          this.airRotationTotal += Math.abs(rotationDelta);
+
+          // Full 360° flip completed in mid-air!
+          if (this.airFlipProgress >= 360) {
+            this.airFlipProgress -= 360;
+            this.completedFlipsCount++;
+            soundManager.playTrickSuccess();
+            this.addComboProgress(45, 'jump');
+            this.score += 1500;
+            const flipName = rotationDelta > 0 ? 'ФРОНТФЛИП 360°' : 'БЭКФЛИП 360°';
+            this.createFloatingText(this.player.x, this.player.y - 70, `🔄 ${flipName}! +1 500! 🔥`, '#38bdf8');
+            this.triggerSpeech(`${flipName}!`);
+          }
+        }
 
         // Camera zoom out during high air jumps
         const jumpHeight = Math.max(0, this.airStartY - this.player.y);
@@ -1312,6 +1383,55 @@ export class GameScene extends Phaser.Scene {
         }
       }
     } else {
+      // LANDING CHECK: Transitioning from airborne to ground
+      if (this.isAirborne) {
+        this.isAirborne = false;
+        const normAngle = Phaser.Math.Angle.WrapDegrees(this.player.angle);
+
+        // If landed upside down (more than 90 degrees off vertical - didn't complete full flip)
+        if (Math.abs(normAngle) > 90 && !this.isGameOver && !this.isVictory && !this.isCutout) {
+          // Recover normally to upright stance
+          this.player.setAngle(0);
+
+          // Deduct 15% battery charge for rough landing
+          const batteryPenalty = 15;
+          this.battery = Math.max(5, this.battery - batteryPenalty);
+
+          // Sound & Visual Feedback
+          soundManager.playWobbleAlert();
+          this.createFloatingText(this.player.x, this.player.y - 85, `⚠️ НЕ ДОКРУТИЛ САЛЬТО! -${batteryPenalty}% ЗАРЯДА! ⚡`, '#f97316');
+          this.triggerSpeech('ОЙ! НЕ ДОКРУТИЛ!');
+
+          // Small wobble recovery animation for physical feedback
+          this.tweens.add({
+            targets: this.player,
+            angle: normAngle > 0 ? 18 : -18,
+            duration: 120,
+            yoyo: true,
+            repeat: 1,
+            ease: 'Quad.easeInOut',
+            onComplete: () => {
+              if (this.player) this.player.setAngle(0);
+            },
+          });
+
+          // Emit friction sparks at wheel contact
+          if (this.sparkFrictionEmitter) {
+            this.sparkFrictionEmitter.explode(16, this.player.x, this.player.y + 36);
+          }
+        } else {
+          // Successful landing right-side up!
+          this.player.setAngle(normAngle);
+          if (this.completedFlipsCount > 0) {
+            const landingBonus = 2500 * this.completedFlipsCount;
+            this.score += landingBonus;
+            soundManager.playTrickSuccess();
+            this.createFloatingText(this.player.x, this.player.y - 85, `🎯 ИДЕАЛЬНОЕ ПРИЗЕМЛЕНИЕ! +${landingBonus}`, '#10b981');
+            this.triggerSpeech('ИДЕАЛЬНОЕ ПРИЗЕМЛЕНИЕ!');
+          }
+        }
+      }
+
       // On ground: smooth zoom restore (unless boost lens distortion kick is active)
       if (this.cameras.main.zoom < 1.0 && (!this.boostLensTween || !this.boostLensTween.isPlaying())) {
         this.cameras.main.setZoom(Phaser.Math.Linear(this.cameras.main.zoom, 1.0, 0.1));
@@ -1813,8 +1933,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleMovement(delta: number) {
-    const onGround = this.player.body?.blocked.down || this.player.body?.touching.down;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const onGround = body?.blocked.down || body?.touching.down;
 
     // 🛑 BOSS DUEL INTRO, COUNTDOWN, VICTORY OR GAMEOVER: Prevent movement or texture override
     if (this.bossDuelIntroPlaying || this.isVictory || this.isGameOver) {
@@ -1916,18 +2036,18 @@ export class GameScene extends Phaser.Scene {
         this.isCrouching = true;
         // Duck low hitbox (reduces height down to 65px)
         this.player.setSize(48, 65);
-        this.player.setOffset(61, 160);
+        this.player.setOffset(116, 193);
       }
     } else {
       if (this.isCrouching) {
         this.isCrouching = false;
         // Standard compact upright hitbox (height 120px)
         this.player.setSize(48, 120);
-        this.player.setOffset(61, 105);
+        this.player.setOffset(116, 138);
       }
     }
 
-    // Horizontal acceleration & tilting
+    // Horizontal acceleration & texture selection
     if (this.inputState.right) {
       body.setAccelerationX(accel);
       if (body.velocity.x > maxSpeed) body.setVelocityX(maxSpeed);
@@ -1935,13 +2055,9 @@ export class GameScene extends Phaser.Scene {
       if (onGround && !this.isWobbling) {
         if (this.isCrouching) {
           this.player.setTexture('sema_crouch');
-          this.player.setAngle(0);
         } else if (this.isTiltback) {
           this.player.setTexture('sema_tiltback');
-          const tiltDeg = this.battery <= 10 ? 25 : 18;
-          this.player.setAngle(-tiltDeg);
         } else {
-          this.player.setAngle(0);
           this.player.setTexture(this.isBoosting ? (this.isSuperBoost ? 'sema_super_boost' : 'sema_boost') : 'sema_lean_fwd');
         }
       }
@@ -1952,13 +2068,9 @@ export class GameScene extends Phaser.Scene {
       if (onGround && !this.isWobbling) {
         if (this.isCrouching) {
           this.player.setTexture('sema_crouch');
-          this.player.setAngle(0);
         } else if (this.isTiltback) {
           this.player.setTexture('sema_tiltback');
-          const tiltDeg = this.battery <= 10 ? 25 : 18;
-          this.player.setAngle(tiltDeg);
         } else {
-          this.player.setAngle(0);
           this.player.setTexture(this.isBoosting ? (this.isSuperBoost ? 'sema_super_boost' : 'sema_boost') : 'sema_lean_fwd');
         }
       }
@@ -1967,34 +2079,55 @@ export class GameScene extends Phaser.Scene {
       if (onGround && !this.isWobbling) {
         if (this.isCrouching) {
           this.player.setTexture('sema_crouch');
-          this.player.setAngle(0);
         } else if (this.isTiltback) {
           this.player.setTexture('sema_tiltback');
-          const tiltDeg = this.battery <= 10 ? 25 : 18;
-          this.player.setAngle(this.player.flipX ? tiltDeg : -tiltDeg);
         } else if (this.isBoosting) {
           this.player.setTexture(this.isSuperBoost ? 'sema_super_boost' : 'sema_boost');
-          this.player.setAngle(0);
         } else if (Math.abs(body.velocity.x) > 30) {
           // Braking / coasting lean
           this.player.setTexture('sema_lean_back');
-          this.player.setAngle(0);
         } else {
           this.player.setTexture('sema_normal');
-          this.player.setAngle(0);
         }
       }
     }
 
-    // In air posture & tiltback
+    // Synchronized real EUC tilt physics:
+    // Sema, the pedals, and the monowheel tilt together in a 1:1 proportional relationship!
+    const isFlip = this.player.flipX;
+    let targetAngle = 0;
+
+    if (!this.isWobbling && !this.isGameOver && !this.isVictory) {
+      if (this.isTiltback) {
+        // EUC safety tiltback leans back sharply
+        targetAngle = isFlip ? 16 : -16;
+      } else if (this.isBoosting) {
+        // Horizontal aerodynamic boost lean: torso leans horizontal to the ground!
+        const boostAngle = this.isSuperBoost ? 74 : 64;
+        targetAngle = isFlip ? -boostAngle : boostAngle;
+      } else if (this.inputState.right) {
+        targetAngle = 10;
+      } else if (this.inputState.left) {
+        targetAngle = -10;
+      } else if (onGround && Math.abs(body.velocity.x) > 40) {
+        // Braking / coasting back lean
+        targetAngle = isFlip ? 6 : -6;
+      }
+    }
+
+    // Smoothly interpolate angle around wheel axle center (ON GROUND ONLY so air flips rotate freely)
+    if (onGround) {
+      const currAngle = this.player.angle;
+      const lerpedAngle = Phaser.Math.Linear(currAngle, targetAngle, 0.22);
+      this.player.setAngle(lerpedAngle);
+    }
+
+    // In air posture
     if (!onGround && !this.isWobbling && !this.isInvulnerable) {
       if (this.isTiltback) {
         this.player.setTexture('sema_tiltback');
-        const tiltDeg = this.battery <= 10 ? 25 : 18;
-        this.player.setAngle(this.player.flipX ? tiltDeg : -tiltDeg);
       } else if (this.isBoosting) {
         this.player.setTexture(this.isSuperBoost ? 'sema_super_boost' : 'sema_boost');
-        this.player.setAngle(0);
       }
     }
 
@@ -2102,6 +2235,15 @@ export class GameScene extends Phaser.Scene {
         this.score += earned;
         this.triggerTrick(trickName, this.combo);
         soundManager.playTrickSuccess();
+
+        // 🔋 Battery Level 3: Quantum Solid-State regenerative braking & trick energy generation
+        if ((this.upgrades?.batteryLevel || 0) >= 3) {
+          const prevBatt = this.battery;
+          this.battery = Math.min(100, this.battery + 8);
+          if (this.battery > prevBatt) {
+            this.createFloatingText(this.player.x, this.player.y - 65, '🔋 РЕГЕНЕРАЦИЯ +8%', '#34d399');
+          }
+        }
       } else {
         // Safe standard landing keeps current combo active, adding minor progress
         this.addComboProgress(10, 'jump');
@@ -2257,6 +2399,44 @@ export class GameScene extends Phaser.Scene {
       yoyo: true,
       duration: 110,
     });
+  }
+
+  private handleHitOverheadObstacle(playerObj: any, obsObj: any) {
+    if (this.isInvulnerable || this.isGameOver || this.isVictory) return;
+    if (!obsObj || obsObj.active === false) return;
+
+    const p = this.player;
+
+    if (this.isCrouching) {
+      // ⬇️ ИГРОК ПРИСЕЛ: УСПЕШНЫЙ ПРОЛЁТ ПОД ПРЕПЯТСТВИЕМ! ⬇️
+      if (!obsObj.getData('duckedPassed')) {
+        obsObj.setData('duckedPassed', true);
+
+        soundManager.playSmileBonus();
+        this.addComboProgress(35, 'grind');
+        const bonusPoints = 200 * this.combo;
+        this.score += bonusPoints;
+        this.tricksCount++;
+
+        this.createFloatingText(p.x, p.y - 65, `⬇️ ПРИСЕД! ПРОСКОЧИЛ! +${bonusPoints}`, '#38bdf8');
+        this.triggerSpeech(Phaser.Math.RND.pick([
+          'ХУХ, ПРОЛЕЗ В ПРИСЕДЕ!',
+          'ПРИСЕЛ — И ПРОЛЕТЕЛ!',
+          'ЧУТЬ ШЛЕМ НЕ СНЕСЛО!',
+          'НАТУРАЛЬНЫЙ ПРИСЕД!'
+        ]));
+
+        if (this.trailEmitter) {
+          this.trailEmitter.emitParticleAt(p.x, p.y + 20, 6);
+        }
+      }
+      return;
+    }
+
+    // Игрок ехал стоя или подпрыгнул прямо в шлагбаум/трубу: СТОЛКНОВЕНИЕ ГОЛОВОЙ!
+    this.createFloatingText(p.x, p.y - 75, '💥 НАДО БЫЛО ПРИСЕСТЬ! ⬇️', '#ef4444');
+    this.triggerSpeech('ОЙ, ГОЛОВА!');
+    this.handleHitObstacle(playerObj, obsObj);
   }
 
   private handleHitObstacle(playerObj: any, obstacleObj: any) {
@@ -2712,8 +2892,15 @@ export class GameScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const hydro = this.upgrades?.hydroLevel || 0;
     
-    // IP68 Hydro Level 3 provides 100% immunity to puddle slipping
+    // IP68 Hydro Level 3: 100% immunity to puddles + turbo-traction on wet asphalt!
     if (hydro >= 3) {
+      const now = this.time.now;
+      const lastHydroBoost = this.player.getData('lastHydroBoost') || 0;
+      if (now - lastHydroBoost > 1200) {
+        this.player.setData('lastHydroBoost', now);
+        body.setVelocityX(body.velocity.x * 1.15);
+        this.createFloatingText(this.player.x, this.player.y - 50, '⚡ IP68 НАНО-СЦЕПЛЕНИЕ! +15%', '#38bdf8');
+      }
       return;
     }
 
@@ -2800,22 +2987,113 @@ export class GameScene extends Phaser.Scene {
       this.physics.world.timeScale = 1.0;
     }
 
-    // 1. Sema falls down ("Сёма прилёг")
-    this.player.setTexture('sema_fall');
+    // 1. Sema falls down directly on the ground surface ("Сёма на земле")
+    const groundY = 648;
+    this.player.setY(groundY - 32);
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     if (body) {
       body.setVelocity(0, 0);
       body.setAcceleration(0, 0);
       body.setAllowGravity(false);
     }
-    this.player.setAngle(this.player.flipX ? 60 : -60);
+    this.player.setAngle(this.player.flipX ? 75 : -75);
 
-    // 2. Floating text & speech
-    this.createFloatingText(this.player.x, this.player.y - 75, '💥 СЁМА ПРИЛЁГ! 💥', '#f43f5e');
-    this.triggerSpeech('ОЙ, ПРИЛЁГ!');
+    // 2. Neon Skeleton Strobe / Blinking Effect ("моргая как скелет")
+    const skeletonTextures = ['sema_skeleton_cyan', 'sema_skeleton_magenta', 'sema_skeleton_green', 'sema_fall'];
+    let skelIdx = 0;
+    this.skeletonTimer = this.time.addEvent({
+      delay: 85,
+      loop: true,
+      callback: () => {
+        if (!this.player || !this.player.active) return;
+        skelIdx = (skelIdx + 1) % skeletonTextures.length;
+        this.player.setTexture(skeletonTextures[skelIdx]);
+      },
+    });
 
-    // 3. Impact shockwave aura
-    const shockwave = this.add.circle(this.player.x, this.player.y + 35, 20, 0xf43f5e, 0.85);
+    // 3. Crying animation with tear streams dripping down & crying emojis ("и плакал")
+    const headX = this.player.x + (this.player.flipX ? 18 : -18);
+    const headY = this.player.y - 12;
+
+    // Tear droplets flowing down onto asphalt
+    for (let i = 0; i < 12; i++) {
+      this.time.delayedCall(i * 120, () => {
+        if (!this.player || !this.player.active) return;
+
+        // Animated tear drop
+        const tear = this.add.circle(
+          headX + Phaser.Math.Between(-8, 8),
+          headY + Phaser.Math.Between(-4, 4),
+          Phaser.Math.Between(3, 5),
+          0x38bdf8,
+          0.9
+        );
+        tear.setDepth(17);
+
+        this.tweens.add({
+          targets: tear,
+          y: headY + Phaser.Math.Between(25, 45),
+          x: tear.x + Phaser.Math.Between(-12, 12),
+          scale: 1.8,
+          alpha: 0,
+          duration: 480,
+          ease: 'Quad.easeIn',
+          onComplete: () => tear.destroy(),
+        });
+
+        // Tear splash / puddle on ground
+        const puddle = this.add.ellipse(headX, headY + 38, 14, 5, 0x0284c7, 0.75);
+        puddle.setDepth(14);
+        this.tweens.add({
+          targets: puddle,
+          scaleX: 2.2,
+          scaleY: 2.2,
+          alpha: 0,
+          duration: 650,
+          onComplete: () => puddle.destroy(),
+        });
+      });
+    }
+
+    // Floating crying emojis
+    const cryEmojis = ['😭', '💧', '😢', '😭'];
+    for (let i = 0; i < 4; i++) {
+      this.time.delayedCall(i * 220, () => {
+        if (!this.player || !this.player.active) return;
+        const emoji = cryEmojis[i % cryEmojis.length];
+        const emText = this.add.text(
+          this.player.x + Phaser.Math.Between(-24, 24),
+          this.player.y - 28,
+          emoji,
+          { fontSize: '24px' }
+        ).setOrigin(0.5).setDepth(18);
+
+        this.tweens.add({
+          targets: emText,
+          y: emText.y - Phaser.Math.Between(45, 80),
+          x: emText.x + Phaser.Math.Between(-20, 20),
+          alpha: 0,
+          scale: 1.5,
+          duration: 900,
+          ease: 'Back.easeOut',
+          onComplete: () => emText.destroy(),
+        });
+      });
+    }
+
+    // 4. Floating text & Crying Speech (NO SKELETON PHRASES!)
+    this.createFloatingText(this.player.x, this.player.y - 75, '😭 СЁМА УПАЛ И ПЛАЧЕТ! 😭', '#f43f5e');
+
+    const cryingSpeech = Phaser.Math.RND.pick([
+      '😭 ХНЫК-ХНЫК! УПАЛ НА АСФАЛЬТ!',
+      '😢 ОЙ-ЁЙ-ЁЙ, МОЁ КОЛЕСО!',
+      '😭 ХНЫК-ХНЫК! БАТАРЕЯ В НУЛЬ!',
+      '💧 ПРИЛЁГ ОТДОХНУТЬ! 😢'
+    ]);
+    this.triggerSpeech(cryingSpeech);
+
+    // 5. Impact shockwave aura on asphalt
+    const shockwave = this.add.circle(this.player.x, groundY - 10, 20, 0xf43f5e, 0.85);
     shockwave.setDepth(16);
     this.tweens.add({
       targets: shockwave,
@@ -2826,8 +3104,8 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => shockwave.destroy(),
     });
 
-    // Fast, responsive 650ms transition to checkpoint dialog, pausing game physics completely
-    this.gameOverTimer = this.time.delayedCall(650, () => {
+    // 6. Give player 1800ms to see the crying skeleton animation on ground before pausing game and showing respawn popup
+    this.gameOverTimer = this.time.delayedCall(1800, () => {
       this.gameOverTimer = null;
       if (this.physics?.world) {
         this.physics.pause();
@@ -2929,7 +3207,7 @@ export class GameScene extends Phaser.Scene {
     this.wobbleTimer = 0;
     this.isAirborne = false;
     this.player.setSize(48, 120);
-    this.player.setOffset(61, 105);
+    this.player.setOffset(116, 138);
     this.player.setTexture('sema_normal');
 
     // Resume scene & physics world
@@ -3319,19 +3597,46 @@ export class GameScene extends Phaser.Scene {
     const isFlip = this.player.flipX;
     const bodyX = this.player.x;
     const bodyY = this.player.y;
+    const scale = this.player.scaleY || 0.72;
+    const rot = this.player.rotation;
 
-    // Headlight position at front of EUC
-    const lightOffset = isFlip ? -26 : 26;
-    const lightY = this.isCrouching ? bodyY + 54 : bodyY + 48;
-    this.headlightBeam.setPosition(bodyX + lightOffset, lightY);
-    this.headlightBeam.setScale((isFlip ? -1 : 1) * 0.72, 0.72);
+    // Wheel axle offset from texture center (120, 135) to axle (120, 207) = +72px down
+    const distY = 72 * scale;
+    const axleX = bodyX - Math.sin(rot) * distY;
+    const axleY = bodyY + Math.cos(rot) * distY;
+
+    // Headlight position attached directly to EUC front lamp
+    // Lamp in canvas: X = 120 + 22, Y = 187 (+52px below center 135)
+    const lx = (isFlip ? -22 : 22) * scale;
+    const ly = 52 * scale;
+    const lampX = bodyX + lx * Math.cos(rot) - ly * Math.sin(rot);
+    const lampY = bodyY + lx * Math.sin(rot) + ly * Math.cos(rot);
+    this.headlightBeam.setPosition(lampX, lampY);
+    this.headlightBeam.setScale((isFlip ? -1 : 1) * scale, scale);
+    this.headlightBeam.setRotation(rot);
 
     // Boost particle trail
     if (this.isBoosting || this.isSuperBoost) {
       this.trailEmitter.start();
-      this.trailEmitter.setPosition(bodyX + (isFlip ? 22 : -22), bodyY + 50);
+      const tx = (isFlip ? 22 : -22) * scale;
+      const ty = 30 * scale;
+      this.trailEmitter.setPosition(bodyX + tx * Math.cos(rot) - ty * Math.sin(rot), bodyY + tx * Math.sin(rot) + ty * Math.cos(rot));
     } else {
       this.trailEmitter.stop();
+    }
+
+    // Single EUC Rotating Wheel locked at axle position
+    if (this.eucWheel && this.eucWheel.active) {
+      this.eucWheel.setPosition(axleX, axleY);
+      this.eucWheel.setScale(scale);
+      this.eucWheel.setVisible(this.player.visible);
+      this.eucWheel.setAlpha(this.player.alpha);
+      this.eucWheel.setDepth(this.player.depth - 0.1);
+
+      const body = this.player.body as Phaser.Physics.Arcade.Body;
+      const vx = body ? body.velocity.x : 0;
+      const angularSpeed = vx / (36 * scale);
+      this.eucWheel.rotation += angularSpeed * (this.game.loop.delta / 1000);
     }
   }
 
@@ -3863,12 +4168,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   public pauseGame() {
-    if (this.isSceneReady && this.scene && typeof this.scene.pause === 'function') {
+    if (this.isSceneReady && this.sys && this.sys.settings) {
       try {
-        if (this.physics?.world) {
-          this.physics.pause();
+        if (this.sys.settings.status === Phaser.Scenes.RUNNING) {
+          if (this.physics?.world) {
+            this.physics.pause();
+          }
+          this.scene.pause();
         }
-        this.scene.pause();
       } catch {
         // Ignore errors if scene is transitioning or destroyed
       }
@@ -3878,12 +4185,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   public resumeGame() {
-    if (this.isSceneReady && this.scene && typeof this.scene.resume === 'function') {
+    if (this.isSceneReady && this.sys && this.sys.settings) {
       try {
-        if (this.physics?.world) {
-          this.physics.resume();
+        if (this.sys.settings.status === Phaser.Scenes.PAUSED) {
+          if (this.physics?.world) {
+            this.physics.resume();
+          }
+          this.scene.resume();
         }
-        this.scene.resume();
       } catch {
         // Ignore errors if scene is transitioning or destroyed
       }

@@ -127,7 +127,7 @@ export const GarageModal: React.FC<GarageModalProps> = ({
     const isUnlocked = upgrades.unlockedSkins.includes(skin);
 
     if (isUnlocked) {
-      soundManager.playCollectVolt();
+      soundManager.playVolt();
       onSaveUpgrades({
         ...upgrades,
         selectedSkin: skin,

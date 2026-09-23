@@ -1,31 +1,123 @@
 import Phaser from 'phaser';
+import { SkinType } from '../types';
+
+export interface SkinPalette {
+  suitDark: string;
+  suitMid: string;
+  suitLight: string;
+  accent: string;
+  stripe: string;
+  glow: string;
+  wheelBody: string;
+  wheelAccent: string;
+  visorGlint: string;
+  headlightBeamHex: number;
+}
+
+export const SKIN_PALETTES: Record<SkinType, SkinPalette> = {
+  emerald: {
+    suitDark: '#022c22',
+    suitMid: '#064e3b',
+    suitLight: '#047857',
+    accent: '#10b981',
+    stripe: '#f59e0b',
+    glow: '#10b981',
+    wheelBody: '#064e3b',
+    wheelAccent: '#10b981',
+    visorGlint: '#38bdf8',
+    headlightBeamHex: 0x38bdf8,
+  },
+  gold: {
+    suitDark: '#78350f',
+    suitMid: '#b45309',
+    suitLight: '#d97706',
+    accent: '#fbbf24',
+    stripe: '#fef08a',
+    glow: '#facc15',
+    wheelBody: '#92400e',
+    wheelAccent: '#fde047',
+    visorGlint: '#fef08a',
+    headlightBeamHex: 0xfde047,
+  },
+  cyan: {
+    suitDark: '#082f49',
+    suitMid: '#0369a1',
+    suitLight: '#0284c7',
+    accent: '#00f0ff',
+    stripe: '#38bdf8',
+    glow: '#06b6d4',
+    wheelBody: '#075985',
+    wheelAccent: '#22d3ee',
+    visorGlint: '#67e8f9',
+    headlightBeamHex: 0x06b6d4,
+  },
+  ruby: {
+    suitDark: '#450a0a',
+    suitMid: '#991b1b',
+    suitLight: '#dc2626',
+    accent: '#ef4444',
+    stripe: '#fbbf24',
+    glow: '#f43f5e',
+    wheelBody: '#7f1d1d',
+    wheelAccent: '#fb7185',
+    visorGlint: '#fda4af',
+    headlightBeamHex: 0xf43f5e,
+  },
+  phantom: {
+    suitDark: '#2e1065',
+    suitMid: '#581c87',
+    suitLight: '#7e22ce',
+    accent: '#a855f7',
+    stripe: '#c084fc',
+    glow: '#9333ea',
+    wheelBody: '#4c1d95',
+    wheelAccent: '#c084fc',
+    visorGlint: '#e9d5ff',
+    headlightBeamHex: 0xa855f7,
+  },
+};
 
 /**
  * Procedural texture generator for «СЁМА МУХА-ХА: КАТУШКА».
  * Generates high-res cartoon graphics for Sema, EUC, obstacles, items, and environments.
  */
-export function generateGameTextures(scene: Phaser.Scene) {
-  // Check if textures already exist to avoid duplicate creation
-  if (scene.textures.exists('sema_normal')) {
-    return;
-  }
-
+export function generateGameTextures(
+  scene: Phaser.Scene,
+  skin: SkinType = 'emerald',
+  forceRecreateSema: boolean = false
+) {
   // 1. SEMA MUKHA-KHA ON EUC (NORMAL / IDLE / CROUCH / SKELETON)
   // Scaled & optimized to fit all tunnels, overhead bridges, and obstacles
-  createSemaTexture(scene, 'sema_normal', { lean: 0, air: false, glow: '#f59e0b', boost: false });
-  createSemaTexture(scene, 'sema_crouch', { lean: 20, air: false, glow: '#f59e0b', boost: false, crouch: true });
-  createSemaTexture(scene, 'sema_lean_fwd', { lean: 10, air: false, glow: '#f59e0b', boost: false });
-  createSemaTexture(scene, 'sema_lean_back', { lean: -10, air: false, glow: '#f59e0b', boost: false });
-  createSemaTexture(scene, 'sema_air', { lean: 4, air: true, glow: '#f59e0b', boost: false });
-  createSemaTexture(scene, 'sema_boost', { lean: 26, air: false, glow: '#38bdf8', boost: true });
-  createSemaTexture(scene, 'sema_super_boost', { lean: 32, air: false, glow: '#fbbf24', boost: true, super: true });
-  createSemaTexture(scene, 'sema_tiltback', { lean: -26, air: false, glow: '#ef4444', boost: false, tiltback: true });
-  createSemaTexture(scene, 'sema_fall', { lean: -45, air: true, glow: '#ef4444', boost: false, fallen: true });
-  createSemaTexture(scene, 'sema_win', { lean: 0, air: false, glow: '#fbbf24', boost: false, win: true });
-  createSemaTexture(scene, 'sema_lose', { lean: -6, air: false, glow: '#ef4444', boost: false, lose: true });
-  createSkeletonSemaTexture(scene, 'sema_skeleton_cyan', '#00ffff', '#38bdf8');
-  createSkeletonSemaTexture(scene, 'sema_skeleton_magenta', '#ff007f', '#f43f5e');
-  createSkeletonSemaTexture(scene, 'sema_skeleton_green', '#39ff14', '#10b981');
+  if (!scene.textures.exists('sema_normal') || forceRecreateSema) {
+    const pal = SKIN_PALETTES[skin] || SKIN_PALETTES.emerald;
+    createEucWheelTexture(scene, 'emerald');
+    createEucWheelTexture(scene, 'gold');
+    createEucWheelTexture(scene, 'cyan');
+    createEucWheelTexture(scene, 'ruby');
+    createEucWheelTexture(scene, 'phantom');
+
+    createSemaTexture(scene, 'sema_normal', { lean: 0, air: false, glow: pal.glow, boost: false }, skin);
+    createSemaTexture(scene, 'sema_crouch', { lean: 0, air: false, glow: pal.glow, boost: false, crouch: true }, skin);
+    createSemaTexture(scene, 'sema_lean_fwd', { lean: 0, air: false, glow: pal.glow, boost: false }, skin);
+    createSemaTexture(scene, 'sema_lean_back', { lean: 0, air: false, glow: pal.glow, boost: false }, skin);
+    createSemaTexture(scene, 'sema_air', { lean: 0, air: true, glow: pal.glow, boost: false }, skin);
+    createSemaTexture(scene, 'sema_boost', { lean: 0, air: false, glow: pal.accent, boost: true }, skin);
+    createSemaTexture(scene, 'sema_super_boost', { lean: 0, air: false, glow: '#fbbf24', boost: true, super: true }, skin);
+    createSemaTexture(scene, 'sema_tiltback', { lean: 0, air: false, glow: '#ef4444', boost: false, tiltback: true }, skin);
+    createSemaTexture(scene, 'sema_fall', { lean: 0, air: true, glow: '#ef4444', boost: false, fallen: true }, skin);
+    createSemaTexture(scene, 'sema_win', { lean: 0, air: false, glow: '#fbbf24', boost: false, win: true }, skin);
+    createSemaTexture(scene, 'sema_lose', { lean: 0, air: false, glow: '#ef4444', boost: false, lose: true }, skin);
+  }
+
+  if (!scene.textures.exists('sema_skeleton_cyan')) {
+    createSkeletonSemaTexture(scene, 'sema_skeleton_cyan', '#00ffff', '#38bdf8');
+    createSkeletonSemaTexture(scene, 'sema_skeleton_magenta', '#ff007f', '#f43f5e');
+    createSkeletonSemaTexture(scene, 'sema_skeleton_green', '#39ff14', '#10b981');
+  }
+
+  if (scene.textures.exists('token_volt')) {
+    return;
+  }
 
   // 2. VOLT TOKEN (Electric glowing orange-gold token)
   createVoltTexture(scene);
@@ -76,15 +168,95 @@ export function generateGameTextures(scene: Phaser.Scene) {
 
   // 13. RACING TRACK HIGH-SPEED CIRCUIT (DUEL WITH FANTOMAS)
   createRacingTrackTextures(scene);
+
+  // 14. OVERHEAD CROUCH OBSTACLES (Шлагбаумы, трубы, ветки, лазерные рамки)
+  createOverheadCrouchObstacleTextures(scene);
+}
+
+function createEucWheelTexture(scene: Phaser.Scene, skin: SkinType = 'emerald') {
+  const pal = SKIN_PALETTES[skin] || SKIN_PALETTES.emerald;
+  const key = `euc_wheel_${skin}`;
+  if (scene.textures.exists(key)) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 80;
+  canvas.height = 80;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.save();
+  ctx.translate(40, 40);
+
+  // Outer Heavy Rubber Tire
+  ctx.fillStyle = '#0b0f19';
+  ctx.beginPath();
+  ctx.arc(0, 0, 36, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Aggressive Tread Grooves (12 radial notches around perimeter)
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < 12; i++) {
+    const ang = (i * Math.PI) / 6;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * 26, Math.sin(ang) * 26);
+    ctx.lineTo(Math.cos(ang) * 35, Math.sin(ang) * 35);
+    ctx.stroke();
+  }
+
+  // Metallic Alloy Rim
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.arc(0, 0, 26, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 5 Directional Alloy Rim Spokes
+  ctx.strokeStyle = pal.wheelAccent || '#94a3b8';
+  ctx.lineWidth = 3.5;
+  for (let i = 0; i < 5; i++) {
+    const ang = (i * Math.PI * 2) / 5;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(ang) * 24, Math.sin(ang) * 24);
+    ctx.stroke();
+  }
+
+  // Inner LED Ring (Skin Glow Color)
+  ctx.strokeStyle = pal.glow;
+  ctx.lineWidth = 3.5;
+  ctx.shadowColor = pal.glow;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(0, 0, 16, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Wheel Hub Axle Cap & Bolt
+  ctx.fillStyle = '#f8fafc';
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = pal.suitDark;
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+  scene.textures.addCanvas(key, canvas);
 }
 
 function createSemaTexture(
   scene: Phaser.Scene,
   key: string,
-  opts: { lean: number; air: boolean; glow: string; boost: boolean; super?: boolean; fallen?: boolean; crouch?: boolean; tiltback?: boolean; win?: boolean; lose?: boolean }
+  opts: { lean: number; air: boolean; glow: string; boost: boolean; super?: boolean; fallen?: boolean; crouch?: boolean; tiltback?: boolean; win?: boolean; lose?: boolean },
+  skin: SkinType = 'emerald'
 ) {
-  const width = 170;
-  const height = 230;
+  const pal = SKIN_PALETTES[skin] || SKIN_PALETTES.emerald;
+  const width = 280;
+  const height = 300;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -92,8 +264,8 @@ function createSemaTexture(
   if (!ctx) return;
 
   ctx.save();
-  // Center pivot around EUC wheel contact point (x: 85, y: 215)
-  ctx.translate(85, 215);
+  // Center pivot around EUC wheel contact point (x: 140, y: 260)
+  ctx.translate(140, 260);
 
   if (opts.fallen) {
     ctx.rotate((Math.PI / 180) * opts.lean);
@@ -105,8 +277,8 @@ function createSemaTexture(
   if (opts.boost) {
     ctx.save();
     const auraGrad = ctx.createRadialGradient(-10, -70, 20, -10, -70, 100);
-    auraGrad.addColorStop(0, opts.super ? 'rgba(251, 191, 36, 0.6)' : 'rgba(56, 189, 248, 0.5)');
-    auraGrad.addColorStop(0.7, opts.super ? 'rgba(245, 158, 11, 0.2)' : 'rgba(14, 165, 233, 0.15)');
+    auraGrad.addColorStop(0, opts.super ? 'rgba(251, 191, 36, 0.6)' : `${pal.accent}88`);
+    auraGrad.addColorStop(0.7, opts.super ? 'rgba(245, 158, 11, 0.2)' : `${pal.glow}33`);
     auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = auraGrad;
     ctx.beginPath();
@@ -128,58 +300,16 @@ function createSemaTexture(
   }
 
   // --- EUC WHEEL & CHASSIS (Bottom) ---
-  // Tire radius 38px, center at (0, -38)
+  // Chassis axle level at wheelY = -38
   const wheelY = -38;
 
-  // Outer Tire
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  ctx.arc(0, wheelY, 36, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  // Tire treads
-  ctx.strokeStyle = '#475569';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 8; i++) {
-    const ang = (i * Math.PI) / 4;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(ang) * 28, wheelY + Math.sin(ang) * 28);
-    ctx.lineTo(Math.cos(ang) * 35, wheelY + Math.sin(ang) * 35);
-    ctx.stroke();
-  }
-
-  // Rim
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath();
-  ctx.arc(0, wheelY, 26, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Glowing LED Ring
-  ctx.strokeStyle = opts.glow;
-  ctx.lineWidth = 4;
-  ctx.shadowColor = opts.glow;
-  ctx.shadowBlur = 12;
-  ctx.beginPath();
-  ctx.arc(0, wheelY, 20, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.shadowBlur = 0; // reset
-
-  // Wheel Hub Axle
-  ctx.fillStyle = '#cbd5e1';
-  ctx.beginPath();
-  ctx.arc(0, wheelY, 8, 0, Math.PI * 2);
-  ctx.fill();
-
   // EUC Body / Shell & Suspension
-  // Main body shell around wheel
-  ctx.fillStyle = '#064e3b'; // Dark emerald
+  // Main body shell around wheel (single wheel sprite will be placed behind this shell)
+  ctx.fillStyle = pal.wheelBody; // Custom Skin Body
   ctx.beginPath();
   ctx.roundRect(-24, wheelY - 44, 48, 52, [8, 8, 4, 4]);
   ctx.fill();
-  ctx.strokeStyle = '#047857';
+  ctx.strokeStyle = pal.wheelAccent;
   ctx.lineWidth = 3;
   ctx.stroke();
 
@@ -207,7 +337,7 @@ function createSemaTexture(
     ctx.beginPath();
     ctx.roundRect(-28, wheelY + 8, 56, 8, 3);
     ctx.fill();
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = pal.stripe;
     ctx.fillRect(-26, wheelY + 7, 52, 2);
   }
 
@@ -221,96 +351,112 @@ function createSemaTexture(
   ctx.fill();
 
   // Headlight lamp
-  ctx.fillStyle = '#fef08a';
+  ctx.fillStyle = pal.stripe;
   ctx.beginPath();
   ctx.arc(22, wheelY - 20, 5, 0, Math.PI * 2);
   ctx.fill();
 
   // --- SÉMA (CHARACTER BODY) ---
+  // --- SÉMA (FORWARD-FACING EUC RIDER STANCE) ---
   // When boosting, Sema drops lower to the ground in a deep aerodynamic speed tuck!
   const boostDrop = opts.boost ? (opts.super ? 26 : 20) : 0;
   const crouchDrop = opts.crouch ? 42 : boostDrop;
 
-  // Legs & Knees on EUC pedals
+  // 1. Boots / Sneakers planted flat on EUC side pedals (pointing forward to right)
+  ctx.fillStyle = '#0f172a'; // Heavy motorcycle boots
+  // Back boot
+  ctx.beginPath();
+  ctx.roundRect(-16, wheelY + 2, 28, 7, [2, 4, 2, 2]);
+  ctx.fill();
+  // Front boot
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.roundRect(-12, wheelY + 3, 30, 7, [2, 5, 2, 2]);
+  ctx.fill();
+  ctx.fillStyle = pal.stripe; // Shoe accent
+  ctx.fillRect(-8, wheelY + 4, 18, 2);
+
+  // 2. Legs & Knees (gripping EUC side pads)
   if (opts.crouch) {
-    // Deeply bent knees in aerodynamic low tuck
-    ctx.fillStyle = '#064e3b';
+    // Deeply bent knees in aerodynamic low tuck facing forward
+    ctx.fillStyle = pal.suitMid;
     ctx.beginPath();
-    ctx.roundRect(-22, wheelY - 20, 18, 26, 4);
+    ctx.roundRect(-18, wheelY - 24, 18, 28, 5);
     ctx.fill();
-    ctx.fillStyle = '#047857';
+    ctx.fillStyle = pal.suitLight;
     ctx.beginPath();
-    ctx.roundRect(2, wheelY - 20, 18, 26, 4);
+    ctx.roundRect(-4, wheelY - 24, 20, 28, 5);
     ctx.fill();
 
-    // Low knee pads
+    // Low knee armor facing forward
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
-    ctx.roundRect(-20, wheelY - 14, 14, 14, 3);
-    ctx.roundRect(4, wheelY - 14, 14, 14, 3);
+    ctx.roundRect(-16, wheelY - 18, 14, 14, 3);
+    ctx.roundRect(-2, wheelY - 18, 14, 14, 3);
     ctx.fill();
-    ctx.strokeStyle = '#10b981';
+    ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 1.5;
     ctx.stroke();
   } else if (opts.boost) {
     // Bent knees in forward-leaning acceleration speed stance closer to pedals/ground
-    ctx.fillStyle = '#064e3b';
+    ctx.fillStyle = pal.suitMid;
     ctx.beginPath();
-    ctx.roundRect(-20, wheelY - 22, 15, 32, 4);
+    ctx.roundRect(-16, wheelY - 26, 16, 34, 5);
     ctx.fill();
-    ctx.fillStyle = '#047857';
+    ctx.fillStyle = pal.suitLight;
     ctx.beginPath();
-    ctx.roundRect(3, wheelY - 22, 16, 32, 4);
+    ctx.roundRect(-2, wheelY - 26, 18, 34, 5);
     ctx.fill();
 
-    // Low aerodynamic knee pads
+    // Low aerodynamic knee armor facing forward
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
-    ctx.roundRect(-19, wheelY - 14, 15, 15, 3);
-    ctx.roundRect(4, wheelY - 14, 15, 15, 3);
+    ctx.roundRect(-14, wheelY - 18, 14, 15, 3);
+    ctx.roundRect(0, wheelY - 18, 15, 15, 3);
     ctx.fill();
-    ctx.strokeStyle = '#10b981';
+    ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 1.5;
     ctx.stroke();
   } else {
+    // Standing tall on EUC pedals facing forward
     // Left leg (back)
-    ctx.fillStyle = '#064e3b'; // Dark emerald pants
+    ctx.fillStyle = pal.suitMid; // Pants back
     ctx.beginPath();
-    ctx.roundRect(-18, wheelY - 30, 14, 40, 5);
+    ctx.roundRect(-14, wheelY - 34, 15, 42, 5);
     ctx.fill();
 
     // Right leg (front)
-    ctx.fillStyle = '#047857';
+    ctx.fillStyle = pal.suitLight; // Pants front
     ctx.beginPath();
-    ctx.roundRect(4, wheelY - 30, 15, 40, 5);
+    ctx.roundRect(0, wheelY - 34, 16, 42, 5);
     ctx.fill();
 
-    // Knee pads (reinforced black polymer)
+    // Knee armor facing forward in motion direction
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
-    ctx.roundRect(-20, wheelY - 18, 16, 16, 4);
-    ctx.roundRect(4, wheelY - 18, 16, 16, 4);
+    ctx.roundRect(-14, wheelY - 20, 15, 16, 4);
+    ctx.roundRect(0, wheelY - 20, 16, 16, 4);
     ctx.fill();
-    ctx.strokeStyle = '#10b981';
+    ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
 
-  // Torso / Jacket (Dark Emerald & Black armored jacket)
+  // Torso / Jacket (Armored jacket)
   const torsoY = wheelY - 95 + crouchDrop;
-  ctx.fillStyle = '#022c22'; // Deepest emerald
+  ctx.fillStyle = pal.suitDark;
   ctx.beginPath();
   ctx.roundRect(-22, torsoY, 44, 52, [10, 10, 6, 6]);
   ctx.fill();
 
   // Chest Armor / Vest
-  ctx.fillStyle = '#064e3b';
+  ctx.fillStyle = pal.suitMid;
   ctx.beginPath();
   ctx.roundRect(-16, torsoY + 6, 32, 38, 6);
   ctx.fill();
 
-  // Orange accents & zipper on chest
-  ctx.strokeStyle = '#f59e0b';
+  // Accent & zipper on chest
+  ctx.strokeStyle = pal.stripe;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(0, torsoY + 6);
@@ -322,7 +468,7 @@ function createSemaTexture(
   ctx.beginPath();
   ctx.roundRect(-34, torsoY + 4, 15, 36, [8, 4, 4, 8]);
   ctx.fill();
-  ctx.fillStyle = '#f59e0b';
+  ctx.fillStyle = pal.stripe;
   ctx.fillRect(-32, torsoY + 12, 10, 4);
 
   // Arms & Handle grip / balance pose
@@ -364,7 +510,7 @@ function createSemaTexture(
     }
 
     // 1. Back Arm (Layered behind/alongside chest)
-    ctx.strokeStyle = '#064e3b';
+    ctx.strokeStyle = pal.suitMid;
     ctx.lineWidth = 11;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -385,11 +531,11 @@ function createSemaTexture(
     ctx.beginPath();
     ctx.ellipse(backHandX, backHandY, 7, 5.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#10b981';
+    ctx.fillStyle = pal.accent;
     ctx.fillRect(backHandX - 4, backHandY - 2, 4, 3);
 
     // 2. Front Arm (Foreground arm reaching strongly forward)
-    ctx.strokeStyle = '#047857';
+    ctx.strokeStyle = pal.suitLight;
     ctx.lineWidth = 13;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -400,7 +546,7 @@ function createSemaTexture(
     ctx.stroke();
 
     // Top sleeve highlight / seam
-    ctx.strokeStyle = '#10b981';
+    ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(frontShoulderX + 2, frontShoulderY - 4);
@@ -413,12 +559,12 @@ function createSemaTexture(
     ctx.beginPath();
     ctx.arc(frontElbowX, frontElbowY, 8, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#10b981';
+    ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     // Front wrist guard cuff
-    ctx.fillStyle = '#10b981';
+    ctx.fillStyle = pal.accent;
     ctx.beginPath();
     ctx.arc(frontWristX, frontWristY, 6.5, 0, Math.PI * 2);
     ctx.fill();
@@ -442,13 +588,13 @@ function createSemaTexture(
     ctx.fill();
 
     // Gold grip stripe
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = pal.stripe;
     ctx.fillRect(frontHandX - 3, frontHandY + 2, 5, 2);
 
     // Speed wind lines trailing from fingertips during boost
     if (opts.boost) {
       ctx.save();
-      ctx.strokeStyle = opts.super ? 'rgba(254, 240, 138, 0.85)' : 'rgba(56, 189, 248, 0.75)';
+      ctx.strokeStyle = opts.super ? '#fde047' : pal.accent;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(frontHandX + 6, frontHandY - 5);
@@ -464,7 +610,7 @@ function createSemaTexture(
     }
   } else if (isTiltbackStance) {
     // ⚠️ TILTBACK STANCE: PEDALS PUSH BACK, ARMS PULLED IN TO CHEST / BRAKING ⚠️
-    ctx.strokeStyle = '#064e3b';
+    ctx.strokeStyle = pal.suitMid;
     ctx.lineWidth = 11;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -478,7 +624,7 @@ function createSemaTexture(
     ctx.arc(-18, torsoY + 14, 6.5, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#047857';
+    ctx.strokeStyle = pal.suitLight;
     ctx.lineWidth = 13;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -500,7 +646,7 @@ function createSemaTexture(
     ctx.fillRect(5, torsoY + 14, 5, 2);
   } else if (isFallenStance) {
     // 💥 FALLEN STANCE: ARMS FLAILING IN REACTION 💥
-    ctx.strokeStyle = '#064e3b';
+    ctx.strokeStyle = pal.suitMid;
     ctx.lineWidth = 11;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -512,7 +658,7 @@ function createSemaTexture(
     ctx.arc(-34, torsoY - 8, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#047857';
+    ctx.strokeStyle = pal.suitLight;
     ctx.lineWidth = 13;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -525,7 +671,7 @@ function createSemaTexture(
     ctx.fill();
   } else if (opts.win) {
     // 🏆 TRIUMPHANT VICTORY POSTURE: BOTH ARMS RAISED IN VICTORY! 🏆
-    ctx.strokeStyle = '#064e3b';
+    ctx.strokeStyle = pal.suitMid;
     ctx.lineWidth = 11;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -539,7 +685,7 @@ function createSemaTexture(
     ctx.arc(-20, torsoY - 44, 7.5, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#047857';
+    ctx.strokeStyle = pal.suitLight;
     ctx.lineWidth = 13;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -568,7 +714,7 @@ function createSemaTexture(
     });
   } else if (opts.lose) {
     // 💔 DEFEATED / SURPRISED POSTURE: HANDS SCRATCHING HEAD / SLUMPED 💔
-    ctx.strokeStyle = '#064e3b';
+    ctx.strokeStyle = pal.suitMid;
     ctx.lineWidth = 11;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -582,7 +728,7 @@ function createSemaTexture(
     ctx.arc(-12, torsoY - 22, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#047857';
+    ctx.strokeStyle = pal.suitLight;
     ctx.lineWidth = 13;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -597,12 +743,12 @@ function createSemaTexture(
     ctx.fill();
   } else {
     // 🚲 NORMAL / IDLE / CRUISING POSTURE 🚲
-    ctx.fillStyle = '#064e3b';
+    ctx.fillStyle = pal.suitMid;
     ctx.beginPath();
     ctx.roundRect(-28, torsoY + 12, 12, 32, 6);
     ctx.fill();
 
-    ctx.fillStyle = '#047857';
+    ctx.fillStyle = pal.suitLight;
     ctx.beginPath();
     ctx.roundRect(14, torsoY + 10, 14, 30, 6);
     ctx.fill();
@@ -619,7 +765,7 @@ function createSemaTexture(
     ctx.arc(22, torsoY + 42, 7, 0, Math.PI * 2);
     ctx.arc(-22, torsoY + 42, 6, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#10b981';
+    ctx.fillStyle = pal.accent;
     ctx.fillRect(18, torsoY + 40, 8, 3);
   }
 
@@ -631,7 +777,7 @@ function createSemaTexture(
   ctx.fillRect(-6, torsoY - 6, 12, 10);
 
   // Helmet shell (Modern aerodynamic full-face EUC helmet)
-  ctx.fillStyle = '#064e3b';
+  ctx.fillStyle = pal.suitMid;
   ctx.beginPath();
   ctx.ellipse(2, headY, 22, 24, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -639,13 +785,13 @@ function createSemaTexture(
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Helmet Top Stripe (Gold / Orange)
-  ctx.fillStyle = '#f59e0b';
+  // Helmet Top Stripe
+  ctx.fillStyle = pal.stripe;
   ctx.beginPath();
   ctx.roundRect(-4, headY - 24, 12, 20, 3);
   ctx.fill();
 
-  // Reflective Visor (Golden / Emerald iridescence)
+  // Reflective Visor
   ctx.fillStyle = '#0f172a';
   ctx.beginPath();
   ctx.roundRect(2, headY - 10, 20, 16, [4, 8, 8, 4]);
@@ -693,7 +839,7 @@ function createSemaTexture(
     ctx.arc(14, headY - 4, 2.5, 0, Math.PI * 2);
     ctx.fill();
   } else {
-    ctx.strokeStyle = '#38bdf8';
+    ctx.strokeStyle = pal.visorGlint || '#38bdf8';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(6, headY - 7);
@@ -709,7 +855,17 @@ function createSemaTexture(
 
   ctx.restore();
 
-  // Add canvas as Phaser texture
+  // Add canvas as Phaser texture or update existing CanvasTexture in place
+  if (scene.textures.exists(key)) {
+    const existingTex = scene.textures.get(key) as Phaser.Textures.CanvasTexture;
+    if (existingTex && typeof existingTex.draw === 'function') {
+      existingTex.clear();
+      existingTex.draw(0, 0, canvas);
+      existingTex.refresh();
+      return;
+    }
+  }
+
   scene.textures.addCanvas(key, canvas);
 }
 
@@ -719,8 +875,8 @@ function createSkeletonSemaTexture(
   neonColor: string,
   glowColor: string
 ) {
-  const width = 170;
-  const height = 230;
+  const width = 280;
+  const height = 300;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -728,7 +884,7 @@ function createSkeletonSemaTexture(
   if (!ctx) return;
 
   ctx.save();
-  ctx.translate(85, 215);
+  ctx.translate(140, 260);
 
   // Neon electric aura
   ctx.save();
@@ -744,33 +900,7 @@ function createSkeletonSemaTexture(
 
   const wheelY = -38;
 
-  // EUC Wheel (Tire with neon rim glow)
-  ctx.fillStyle = '#020617';
-  ctx.beginPath();
-  ctx.arc(0, wheelY, 36, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = neonColor;
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  // Neon spokes
-  ctx.strokeStyle = glowColor;
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 6; i++) {
-    const ang = (i * Math.PI) / 3;
-    ctx.beginPath();
-    ctx.moveTo(0, wheelY);
-    ctx.lineTo(Math.cos(ang) * 28, wheelY + Math.sin(ang) * 28);
-    ctx.stroke();
-  }
-
-  // Wheel Hub Axle
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(0, wheelY, 7, 0, Math.PI * 2);
-  ctx.fill();
-
-  // EUC Shell with neon edges
+  // EUC Shell with neon edges (single eucWheel sits behind this)
   ctx.fillStyle = '#090d16';
   ctx.beginPath();
   ctx.roundRect(-24, wheelY - 44, 48, 52, [8, 8, 4, 4]);
@@ -3371,6 +3501,361 @@ function createRacingTrackTextures(scene: Phaser.Scene) {
       ctx.stroke();
 
       scene.textures.addCanvas('track_racing_barrier', canvas);
+    }
+  }
+}
+
+/**
+ * Procedural textures for Overhead Crouch Obstacles (Препятствия под присед):
+ * - obstacle_overhead_barrier (Шлагбаум парковки / проезда)
+ * - obstacle_overhead_pipe (Промышленная труба / строительная балка)
+ * - obstacle_overhead_branch (Низкая парковая ветка)
+ * - obstacle_overhead_laser (Кибер-лазерный барьер / сканер)
+ */
+function createOverheadCrouchObstacleTextures(scene: Phaser.Scene) {
+  // 1. ШЛАГБАУМ (obstacle_overhead_barrier)
+  if (!scene.textures.exists('obstacle_overhead_barrier')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 140;
+    canvas.height = 110;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Left Support Column (Опорная тумба шлагбаума)
+      ctx.fillStyle = '#f97316'; // Orange metal housing
+      ctx.beginPath();
+      ctx.roundRect(8, 20, 20, 88, [4, 4, 0, 0]);
+      ctx.fill();
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Flashing Top Warning Red Beacon
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(18, 14, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fecaca';
+      ctx.beginPath();
+      ctx.arc(16, 12, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Glow halo
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(18, 14, 10, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Pivot Gear Hub
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(18, 38, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.arc(18, 38, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Horizontal Boom Arm (Балка шлагбаума с красно-белыми светоотражающими полосами)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(18, 32, 118, 14, 3);
+      ctx.clip();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(18, 32, 118, 14);
+
+      // Red diagonal safety stripes
+      ctx.fillStyle = '#ef4444';
+      for (let sx = 0; sx < 140; sx += 18) {
+        ctx.beginPath();
+        ctx.moveTo(sx, 32);
+        ctx.lineTo(sx + 10, 32);
+        ctx.lineTo(sx + 2, 46);
+        ctx.lineTo(sx - 8, 46);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Boom arm border
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(18, 32, 118, 14);
+
+      // LED Warning lights on arm
+      [42, 75, 108].forEach((lx) => {
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(lx, 39, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Hanging Yellow Warning Sign ("⬇️ ПРИСЕД 1.2м")
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.roundRect(46, 48, 64, 26, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Metal hanging brackets
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(56, 46);
+      ctx.lineTo(56, 48);
+      ctx.moveTo(100, 46);
+      ctx.lineTo(100, 48);
+      ctx.stroke();
+
+      // Sign text & icon
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 9px Rubik, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⬇️ ПРИСЕД', 78, 59);
+      ctx.font = 'bold 7px sans-serif';
+      ctx.fillText('ГАБАРИТ 1.2м', 78, 69);
+
+      scene.textures.addCanvas('obstacle_overhead_barrier', canvas);
+    }
+  }
+
+  // 2. ПРОМЫШЛЕННАЯ ТРУБА / СТРОИТЕЛЬНЫЕ ЛЕСА (obstacle_overhead_pipe)
+  if (!scene.textures.exists('obstacle_overhead_pipe')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 140;
+    canvas.height = 110;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Left & Right Scaffold Steel Support Beams
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(8, 20, 10, 88);
+      ctx.fillRect(122, 20, 10, 88);
+
+      // Diagonal cross brace on left
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(8, 90);
+      ctx.lineTo(18, 45);
+      ctx.moveTo(122, 90);
+      ctx.lineTo(132, 45);
+      ctx.stroke();
+
+      // Main Horizontal Heavy Pipe
+      const pipeGrad = ctx.createLinearGradient(0, 26, 0, 48);
+      pipeGrad.addColorStop(0, '#64748b');
+      pipeGrad.addColorStop(0.5, '#94a3b8');
+      pipeGrad.addColorStop(1, '#334155');
+      ctx.fillStyle = pipeGrad;
+      ctx.beginPath();
+      ctx.roundRect(4, 26, 132, 22, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Pipe Flange Rings & Rivets
+      [36, 104].forEach((fx) => {
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(fx - 4, 24, 8, 26);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(fx - 4, 24, 8, 26);
+      });
+
+      // Warning Yellow/Black Hazard Striping under the pipe
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(18, 48, 104, 10);
+      ctx.clip();
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(18, 48, 104, 10);
+      ctx.fillStyle = '#0f172a';
+      for (let hx = 0; hx < 140; hx += 16) {
+        ctx.beginPath();
+        ctx.moveTo(hx, 48);
+        ctx.lineTo(hx + 8, 48);
+        ctx.lineTo(hx + 2, 58);
+        ctx.lineTo(hx - 6, 58);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.strokeRect(18, 48, 104, 10);
+
+      // Hanging Metal Caution Plate ("⚠️ НИЗКИЙ ПРОЛЁТ")
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.roundRect(42, 58, 56, 22, 3);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px Rubik, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠️ ОСТОРОЖНО', 70, 68);
+      ctx.font = 'bold 7px Rubik, sans-serif';
+      ctx.fillText('⬇️ НИЗКИЙ ПРОЛЁТ', 70, 77);
+
+      scene.textures.addCanvas('obstacle_overhead_pipe', canvas);
+    }
+  }
+
+  // 3. НИЗКАЯ ВЕТКА ПАРКА (obstacle_overhead_branch)
+  if (!scene.textures.exists('obstacle_overhead_branch')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 140;
+    canvas.height = 110;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Tree Trunk on Left
+      ctx.fillStyle = '#5c3a21';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(24, 0);
+      ctx.lineTo(20, 110);
+      ctx.lineTo(0, 110);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#3f2512';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Main thick branch stretching across
+      ctx.fillStyle = '#6b4226';
+      ctx.beginPath();
+      ctx.moveTo(18, 30);
+      ctx.quadraticCurveTo(65, 34, 135, 42);
+      ctx.lineTo(135, 54);
+      ctx.quadraticCurveTo(65, 46, 18, 48);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Secondary twig bending down
+      ctx.beginPath();
+      ctx.moveTo(85, 46);
+      ctx.quadraticCurveTo(95, 62, 110, 68);
+      ctx.lineTo(105, 70);
+      ctx.quadraticCurveTo(90, 64, 82, 48);
+      ctx.closePath();
+      ctx.fill();
+
+      // Lush Green Leaves Clusters hanging down
+      const leaves = [
+        { x: 45, y: 32, r: 16, c: '#059669' },
+        { x: 68, y: 38, r: 18, c: '#10b981' },
+        { x: 92, y: 44, r: 17, c: '#047857' },
+        { x: 116, y: 48, r: 19, c: '#10b981' },
+        { x: 78, y: 56, r: 14, c: '#34d399' },
+        { x: 104, y: 64, r: 15, c: '#059669' },
+      ];
+      leaves.forEach((l) => {
+        ctx.fillStyle = l.c;
+        ctx.beginPath();
+        ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Wooden Park Sign hanging on ropes ("🌿 ПРИСЯДЬ! ⬇️")
+      // Ropes
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(48, 45);
+      ctx.lineTo(48, 62);
+      ctx.moveTo(88, 47);
+      ctx.lineTo(88, 62);
+      ctx.stroke();
+
+      // Wooden Plank
+      ctx.fillStyle = '#b45309';
+      ctx.beginPath();
+      ctx.roundRect(38, 62, 60, 22, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#fef08a';
+      ctx.font = 'bold 8px Rubik, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🌿 ВЕТКА!', 68, 72);
+      ctx.font = 'bold 7px Rubik, sans-serif';
+      ctx.fillText('⬇️ ПРИСЯДЬ!', 68, 80);
+
+      scene.textures.addCanvas('obstacle_overhead_branch', canvas);
+    }
+  }
+
+  // 4. КИБЕР-ЛАЗЕРНЫЙ СКАНИРУЮЩИЙ БАРЬЕР (obstacle_overhead_laser)
+  if (!scene.textures.exists('obstacle_overhead_laser')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 140;
+    canvas.height = 110;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Carbon Tech Side Pylons
+      ctx.fillStyle = '#090d16';
+      ctx.beginPath();
+      ctx.roundRect(6, 18, 14, 90, 4);
+      ctx.roundRect(120, 18, 14, 90, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Neon Circuits on pylons
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(13, 24);
+      ctx.lineTo(13, 100);
+      ctx.moveTo(127, 24);
+      ctx.lineTo(127, 100);
+      ctx.stroke();
+
+      // Main Laser Projector Bar across top
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.roundRect(4, 28, 132, 18, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Pulsating Laser Energy Beam
+      ctx.save();
+      ctx.shadowColor = '#f43f5e';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#fb7185';
+      ctx.fillRect(18, 34, 104, 6);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(20, 36, 100, 2);
+      ctx.restore();
+
+      // Holographic Warning Projection ("⚡ DUCK / ПРИСЕД ⚡")
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(40, 52, 60, 24, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#00ffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px Rubik, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚡ КИБЕР-ЗОНА ⚡', 70, 62);
+      ctx.fillStyle = '#fef08a';
+      ctx.font = 'bold 8px Rubik, sans-serif';
+      ctx.fillText('⬇️ ПРИСЕД ⬇️', 70, 72);
+
+      scene.textures.addCanvas('obstacle_overhead_laser', canvas);
     }
   }
 }
