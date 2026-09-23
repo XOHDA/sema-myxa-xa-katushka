@@ -4434,23 +4434,41 @@ export class GameScene extends Phaser.Scene {
     this.bossIntroTriggered = true;
     this.bossDuelIntroPlaying = true;
 
-    // 0. STOP & BRAKE SÉMA TO A HALT AT THE STARTING LINE
+    // 0. STOP & BRAKE SÉMA TO A HALT AT THE STARTING LINE ON THE GROUND
     this.isBoosting = false;
     this.boostHoldDuration = 0;
     this.jumpBufferTimer = 0;
     this.jumpTriggered = false;
+    this.isAirborne = false;
+    this.isCrouching = false;
+    this.airFlipProgress = 0;
+    this.completedFlipsCount = 0;
     this.inputState = { left: false, right: false, jump: false, boost: false, down: false };
     soundManager.updateMotorSpeed(0, false);
     soundManager.stopMotor();
     soundManager.updateTurbine(false, 0, false);
     soundManager.stopTurbine();
-    if (this.player?.body) {
-      const pb = this.player.body as Phaser.Physics.Arcade.Body;
-      pb.setVelocityX(0);
-      pb.setAccelerationX(0);
-    }
+
+    // Reset player size and texture to upright stance on monowheel
+    this.player.setSize(48, 120);
+    this.player.setOffset(116, 138);
     this.player.setTexture('sema_normal');
     this.player.setAngle(0);
+
+    // Firmly position Séma on the asphalt ground road surface (Y = 565) behind Fantomas
+    this.player.setY(565);
+    if (this.player?.body) {
+      const pb = this.player.body as Phaser.Physics.Arcade.Body;
+      pb.setVelocity(0, 0);
+      pb.setAcceleration(0, 0);
+    }
+    if (this.eucWheel) {
+      this.eucWheel.setPosition(this.player.x, 565);
+      this.eucWheel.setAngle(0);
+    }
+    if (this.headlightBeam) {
+      this.headlightBeam.setPosition(this.player.x, 565);
+    }
 
     // 1. SOUND & DRAMATIC AUDIO
     soundManager.playBossIntro();
@@ -4782,8 +4800,26 @@ export class GameScene extends Phaser.Scene {
     boss.setY(538);
     body.setVelocityY(0);
 
-    // If intro is still playing or game is ended, keep boss in staging position
-    if (this.bossDuelIntroPlaying || this.isVictory || this.isGameOver) {
+    // Keep Séma grounded on the asphalt road behind Fantomas during intro & countdown
+    if (this.bossDuelIntroPlaying) {
+      this.player.setY(565);
+      this.player.setAngle(0);
+      if (this.player.body) {
+        const pb = this.player.body as Phaser.Physics.Arcade.Body;
+        pb.setVelocity(0, 0);
+        pb.setAcceleration(0, 0);
+      }
+      if (this.eucWheel) {
+        this.eucWheel.setPosition(this.player.x, 565);
+        this.eucWheel.setAngle(0);
+      }
+      if (this.headlightBeam) {
+        this.headlightBeam.setPosition(this.player.x, 565);
+      }
+      return;
+    }
+
+    if (this.isVictory || this.isGameOver) {
       return;
     }
 
