@@ -478,136 +478,60 @@ function createSemaTexture(
   const isFallenStance = opts.fallen;
 
   if (isBoostStance) {
-    // 🌟 FORWARD EXTENDED ARMS: ACTIVE ONLY ON BOOST BUTTON! 🌟
-    // In this low-to-the-ground speed lean, both arms shoot forward into the wind
-    let frontShoulderX = 8;
-    let frontShoulderY = torsoY + 10;
-    let frontElbowX = 28;
-    let frontElbowY = torsoY + 12;
-    let frontWristX = 46;
-    let frontWristY = torsoY + 13;
-    let frontHandX = 52;
-    let frontHandY = torsoY + 13;
+    // 🌟 CLEAN SOLID HUMAN RACING ARMS FOR BOOST 🌟
+    const armY = torsoY + 14;
+    const reach = opts.super ? 52 : 44;
 
-    let backShoulderX = -6;
-    let backShoulderY = torsoY + 12;
-    let backElbowX = 16;
-    let backElbowY = torsoY + 14;
-    let backWristX = 36;
-    let backWristY = torsoY + 15;
-    let backHandX = 42;
-    let backHandY = torsoY + 15;
-
-    if (opts.super) {
-      // Super Boost: maximum aerodynamic reach forward closer to the ground
-      frontElbowX = 30; frontElbowY = torsoY + 10;
-      frontWristX = 50; frontWristY = torsoY + 11;
-      frontHandX = 56; frontHandY = torsoY + 11;
-
-      backElbowX = 18; backElbowY = torsoY + 12;
-      backWristX = 40; backWristY = torsoY + 13;
-      backHandX = 46; backHandY = torsoY + 13;
-    }
-
-    // 1. Back Arm (Layered behind/alongside chest)
-    ctx.strokeStyle = pal.suitMid;
-    ctx.lineWidth = 11;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // 1. Back Arm (Darker suit shade, layered behind torso)
+    ctx.fillStyle = pal.suitMid;
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(backShoulderX, backShoulderY);
-    ctx.lineTo(backElbowX, backElbowY);
-    ctx.lineTo(backWristX, backWristY);
+    ctx.roundRect(-4, armY - 5, reach, 11, 5);
+    ctx.fill();
     ctx.stroke();
 
-    // Back elbow pad
-    ctx.fillStyle = '#1e293b';
-    ctx.beginPath();
-    ctx.arc(backElbowX, backElbowY, 6, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Back motorcycle glove (reaching forward)
+    // Back Gloved Hand
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
-    ctx.ellipse(backHandX, backHandY, 7, 5.5, 0, 0, Math.PI * 2);
+    ctx.arc(reach - 4, armY, 5.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = pal.accent;
-    ctx.fillRect(backHandX - 4, backHandY - 2, 4, 3);
 
-    // 2. Front Arm (Foreground arm reaching strongly forward)
-    ctx.strokeStyle = pal.suitLight;
-    ctx.lineWidth = 13;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // 2. Front Arm (Main foreground arm - solid, clean, muscular)
+    ctx.fillStyle = pal.suitLight;
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
+    
+    // Smooth solid sleeve extending forward
     ctx.beginPath();
-    ctx.moveTo(frontShoulderX, frontShoulderY);
-    ctx.lineTo(frontElbowX, frontElbowY);
-    ctx.lineTo(frontWristX, frontWristY);
+    ctx.roundRect(6, armY - 7, reach + 2, 14, 7);
+    ctx.fill();
     ctx.stroke();
 
-    // Top sleeve highlight / seam
-    ctx.strokeStyle = pal.accent;
-    ctx.lineWidth = 2.5;
+    // Top sleeve accent stripe
+    ctx.fillStyle = pal.stripe;
     ctx.beginPath();
-    ctx.moveTo(frontShoulderX + 2, frontShoulderY - 4);
-    ctx.lineTo(frontElbowX, frontElbowY - 4);
-    ctx.lineTo(frontWristX - 2, frontWristY - 4);
-    ctx.stroke();
+    ctx.roundRect(10, armY - 6, reach - 10, 3, 1.5);
+    ctx.fill();
 
-    // Front reinforced elbow armor pad
+    // Single sleek elbow armor pad
     ctx.fillStyle = '#1e293b';
     ctx.beginPath();
-    ctx.arc(frontElbowX, frontElbowY, 8, 0, Math.PI * 2);
+    ctx.roundRect(16, armY - 7, 12, 14, 4);
     ctx.fill();
     ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Front wrist guard cuff
+    // Single clean leather motorcycle glove gripping forward
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.roundRect( reach + 2, armY - 6, 12, 12, 4);
+    ctx.fill();
+
+    // Glove accent cuff
     ctx.fillStyle = pal.accent;
-    ctx.beginPath();
-    ctx.arc(frontWristX, frontWristY, 6.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Front motorcycle glove (fingers and knuckle shell pointing forward)
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath();
-    ctx.ellipse(frontHandX, frontHandY, 8.5, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Knuckle guard shell
-    ctx.fillStyle = '#334155';
-    ctx.beginPath();
-    ctx.roundRect(frontHandX - 5, frontHandY - 4, 8, 4, 2);
-    ctx.fill();
-
-    // Extended fingers cutting forward into wind
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath();
-    ctx.ellipse(frontHandX + 4, frontHandY, 4, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Gold grip stripe
-    ctx.fillStyle = pal.stripe;
-    ctx.fillRect(frontHandX - 3, frontHandY + 2, 5, 2);
-
-    // Speed wind lines trailing from fingertips during boost
-    if (opts.boost) {
-      ctx.save();
-      ctx.strokeStyle = opts.super ? '#fde047' : pal.accent;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(frontHandX + 6, frontHandY - 5);
-      ctx.lineTo(frontHandX - 26, frontHandY - 5);
-      ctx.moveTo(frontHandX + 4, frontHandY + 5);
-      ctx.lineTo(frontHandX - 22, frontHandY + 5);
-      if (opts.super) {
-        ctx.moveTo(frontHandX + 8, frontHandY);
-        ctx.lineTo(frontHandX - 32, frontHandY);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
+    ctx.fillRect(reach + 2, armY - 5, 3, 10);
   } else if (isTiltbackStance) {
     // ⚠️ TILTBACK STANCE: PEDALS PUSH BACK, ARMS PULLED IN TO CHEST / BRAKING ⚠️
     ctx.strokeStyle = pal.suitMid;
