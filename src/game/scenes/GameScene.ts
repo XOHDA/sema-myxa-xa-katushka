@@ -1049,6 +1049,7 @@ export class GameScene extends Phaser.Scene {
   public update(time: number, delta: number) {
     if (this.isGameOver || this.isVictory) {
       soundManager.stopMotor();
+      this.updateLightsAndEffects();
       return;
     }
 
@@ -3320,6 +3321,7 @@ export class GameScene extends Phaser.Scene {
       this.player.setDepth(20);
       this.player.setVisible(true);
       this.player.setAlpha(1);
+      this.updateLightsAndEffects();
 
       if (playerWon) {
         // --- 🏆 СЁМА ПОБЕДИЛ! СЁМА РАДУЕТСЯ, ФАНТОМАС СТОИТ И ПЛАЧЕТ НА ФИНИШЕ 🏆 ---
