@@ -230,15 +230,37 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
     const game = new Phaser.Game(config);
 
-    // Safely wrap game.scene.pause to eliminate "Cannot pause non-running Scene" warnings
+    // Safely wrap game.scene.pause and resume to eliminate "Cannot pause non-running Scene" warnings and undefined status errors
     if (game.scene) {
       const origPause = game.scene.pause.bind(game.scene);
       game.scene.pause = function (key: string, data?: any) {
         try {
-          if (key && (this as any).isActive && !(this as any).isActive(key)) {
+          const targetKey = key || 'GameScene';
+          if (typeof (this as any).isRunning === 'function' && !(this as any).isRunning(targetKey)) {
+            return this;
+          }
+          const scene = (this as any).getScene?.(targetKey);
+          if (!scene?.sys?.settings || scene.sys.settings.status !== Phaser.Scenes.RUNNING) {
             return this;
           }
           return origPause(key, data);
+        } catch {
+          return this;
+        }
+      };
+
+      const origResume = game.scene.resume.bind(game.scene);
+      game.scene.resume = function (key: string, data?: any) {
+        try {
+          const targetKey = key || 'GameScene';
+          if (typeof (this as any).isPaused === 'function' && !(this as any).isPaused(targetKey)) {
+            return this;
+          }
+          const scene = (this as any).getScene?.(targetKey);
+          if (!scene?.sys?.settings || scene.sys.settings.status !== Phaser.Scenes.PAUSED) {
+            return this;
+          }
+          return origResume(key, data);
         } catch {
           return this;
         }
@@ -250,10 +272,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     gameRef.current = game;
 
     return () => {
-      if (sceneRef.current) {
-        sceneRef.current.destroyScene();
+      try {
+        if (sceneRef.current) {
+          sceneRef.current.destroyScene();
+        }
+        game.destroy(true);
+      } catch {
+        // Suppress any destruction errors during quick component unmount
       }
-      game.destroy(true);
       gameRef.current = null;
       sceneRef.current = null;
     };

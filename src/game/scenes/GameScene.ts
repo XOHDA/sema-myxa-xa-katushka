@@ -171,6 +171,7 @@ export class GameScene extends Phaser.Scene {
   private bossLetterboxTop: Phaser.GameObjects.Rectangle | null = null;
   private bossLetterboxBottom: Phaser.GameObjects.Rectangle | null = null;
   private bossDuelBannerContainer: Phaser.GameObjects.Container | null = null;
+  private isGamePaused = false;
 
   constructor(
     levelConfig: LevelConfig,
@@ -1769,23 +1770,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateDynamicWeather(_delta: number) {
-    const progress = Phaser.Math.Clamp(this.distance / Math.max(1, this.levelConfig.length), 0, 1);
-    let targetWeather: WeatherType = this.levelConfig.weather;
-
-    switch (this.levelConfig.id) {
-      case 2:
-        targetWeather = progress >= 0.35 && progress <= 0.70 ? 'light-rain' : 'clear';
-        break;
-      case 6:
-        targetWeather = progress <= 0.85 ? 'heavy-rain' : 'light-rain';
-        break;
-      case 11:
-        targetWeather = progress >= 0.25 && progress <= 0.85 ? 'blizzard' : 'snow';
-        break;
-      default:
-        targetWeather = this.levelConfig.weather;
-        break;
-    }
+    // Dynamic weather matches configured level weather so Level Select modal always accurately reflects in-game conditions
+    const targetWeather: WeatherType = this.levelConfig.weather;
 
     if (targetWeather !== this.currentWeather) {
       this.applyWeather(targetWeather, true);
@@ -4335,14 +4321,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   public pauseGame() {
-    if (this.isSceneReady && this.sys?.settings) {
+    if (this.isGamePaused) {
+      soundManager.stopMotor();
+      soundManager.stopTurbine();
+      return;
+    }
+    this.isGamePaused = true;
+
+    if (this.isSceneReady && this.sys?.settings && this.sys.settings.status === Phaser.Scenes.RUNNING) {
       try {
-        const sceneKey = this.sys.settings.key || 'GameScene';
-        if (this.sys.settings.status === Phaser.Scenes.RUNNING && this.scene?.isActive(sceneKey)) {
-          if (this.physics?.world) {
-            this.physics.pause();
-          }
-          this.scene.pause(sceneKey);
+        if (this.physics?.world) {
+          this.physics.pause();
+        }
+        if (typeof this.sys.pause === 'function') {
+          this.sys.pause();
         }
       } catch {
         // Ignore errors if scene is transitioning or destroyed
@@ -4353,17 +4345,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   public resumeGame() {
-    if (this.isSceneReady && this.sys?.settings) {
+    if (!this.isGamePaused) {
+      soundManager.startMotor();
+      return;
+    }
+    this.isGamePaused = false;
+
+    if (this.isSceneReady && this.sys?.settings && this.sys.settings.status === Phaser.Scenes.PAUSED) {
       try {
-        const sceneKey = this.sys.settings.key || 'GameScene';
-        if (
-          (this.sys.settings.status === Phaser.Scenes.PAUSED || this.scene?.isPaused(sceneKey)) &&
-          this.scene?.isPaused(sceneKey)
-        ) {
-          if (this.physics?.world) {
-            this.physics.resume();
-          }
-          this.scene.resume(sceneKey);
+        if (this.physics?.world) {
+          this.physics.resume();
+        }
+        if (typeof this.sys.resume === 'function') {
+          this.sys.resume();
         }
       } catch {
         // Ignore errors if scene is transitioning or destroyed
@@ -4374,6 +4368,7 @@ export class GameScene extends Phaser.Scene {
 
   public destroyScene() {
     this.isSceneReady = false;
+    this.isGamePaused = true;
     if (this.skeletonTimer) {
       this.skeletonTimer.remove();
       this.skeletonTimer = null;

@@ -115,9 +115,6 @@ export function generateGameTextures(
     createSkeletonSemaTexture(scene, 'sema_skeleton_green', '#39ff14', '#10b981');
   }
 
-  // Weather Particles (Rain, Snow, Splashes, Spray)
-  createWeatherParticleTextures(scene);
-
   if (scene.textures.exists('token_volt')) {
     return;
   }
